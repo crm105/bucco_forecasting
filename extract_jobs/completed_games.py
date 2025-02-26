@@ -14,8 +14,11 @@ ToDo: Parse Additional fields
 """
 
 import pandas as pd
-import statsapi
 import requests
+import yaml
+
+from sqlalchemy import create_engine
+
 
 endpoint = "schedule"
 params = {"sportId" :1,
@@ -26,8 +29,10 @@ params = {"sportId" :1,
 
 url = f"https://statsapi.mlb.com/api/v1/{endpoint}"
 
+response = requests.get(url, params = params)
+
 games = []
-for date in test.json().get("dates"):
+for date in response.json().get("dates"):
     for game in date.get("games"):
         #Skip incomplete games due to rainouts
         if game['status']['statusCode'] != 'F':
@@ -54,7 +59,7 @@ for date in test.json().get("dates"):
 completed_game_frame = pd.DataFrame.from_records(games)
 
 #Load retreived data into Postgres DB 
-with open("extract_jobs/config/db_config.yml", "r") as file:
+with open("../db_config.yml", "r") as file:
     config = yaml.safe_load(file)
 
 DB_USERNAME = config["DB_USERNAME"]
