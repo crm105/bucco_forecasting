@@ -1,0 +1,13 @@
+version: 2
+
+models:
+  - name: modeling_frame
+    description: Curates processed, forecast model ready data 
+    columns:
+      - name: gamePk
+        description: Game ID
+        data_tests:
+          - unique
+          - not_null
+      - name: pirates_win
+        description: Binary flag indicating whether Pirates won the game
