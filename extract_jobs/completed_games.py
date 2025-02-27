@@ -75,7 +75,7 @@ for date in response.json().get("dates"):
 completed_game_frame = pd.DataFrame.from_records(games)
 
 #Load retreived data into Postgres DB 
-with open("db_config.yml", "r") as file:
+with open("../db_config.yml", "r") as file:
     config = yaml.safe_load(file)
 
 DB_USERNAME = config["DB_USERNAME"]
