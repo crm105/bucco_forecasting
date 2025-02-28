@@ -9,5 +9,17 @@ models:
         data_tests:
           - unique
           - not_null
-      - name: pirates_win
-        description: Binary flag indicating whether Pirates won the game
+      - name: home_win
+        description: Binary flag indicating whether home team won the game
+      - name: home_wins
+        description: Total home team victories on the season prior to game being played 
+      - name: home_losses
+        description: Total home team losses on the season prior to game being played
+      - name: home_pct
+        description: Home team winning percentage prior to game being played
+      - name: away_wins
+        description: Total away team victories on the season prior to game being played 
+      - name: away_losses
+        description: Total away team losses on the season prior to game being played
+      - name: away_pct
+        description: Away team winning percentage prior to game being played
