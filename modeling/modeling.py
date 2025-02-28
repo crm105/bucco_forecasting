@@ -2,21 +2,16 @@ import pandas as pd
 import pickle
 import yaml
 
+import sys
+sys.path.append('..')
+
 from sklearn.linear_model import LinearRegression
-from sqlalchemy import create_engine
+from utils.utils import pg_engine
 
-#ToDo: Offload Engine Creation to Util, Draw from environmental variables 
 with open("../db_config.yml", "r") as file:
-    config = yaml.safe_load(file)
+    db_config = yaml.safe_load(file)
 
-DB_USERNAME = config["DB_USERNAME"]
-DB_PASSWORD = config["DB_PASSWORD"]
-DB_HOST = config["DB_HOST"]
-DB_PORT = config["DB_PORT"]
-DB_NAME = config["DB_NAME"]
-TABLE_NAME = "game_results"
-
-engine = create_engine(f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+engine = pg_engine(db_config)
 
 query = "SELECT * FROM crm_mart.modeling_frame"
 modeling_frame = pd.read_sql(query, con = engine )

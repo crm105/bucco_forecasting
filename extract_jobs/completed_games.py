@@ -13,11 +13,18 @@ ToDo: Parse Additional fields
     - Away Score
 """
 
+import numpy as np
 import pandas as pd
+import pickle
 import requests
-from sqlalchemy import create_engine
-from sqlalchemy.types import Float
 import yaml
+
+import sys
+sys.path.append('..')
+
+from utils.utils import pg_engine
+from sklearn.linear_model import LinearRegression
+from sqlalchemy import Float
 
 endpoint = "schedule"
 params = {"sportId" :1,
@@ -77,20 +84,13 @@ for date in response.json().get("dates"):
 
 completed_game_frame = pd.DataFrame.from_records(games)
 
-#Load retreived data into Postgres DB 
+#ToDo: Offload Engine Creation to Util, Draw from environmental variables 
 with open("../db_config.yml", "r") as file:
-    config = yaml.safe_load(file)
+    db_config = yaml.safe_load(file)
 
-DB_USERNAME = config["DB_USERNAME"]
-DB_PASSWORD = config["DB_PASSWORD"]
-DB_HOST = config["DB_HOST"]
-DB_PORT = config["DB_PORT"]
-DB_NAME = config["DB_NAME"]
-TABLE_NAME = "game_results"
-
-engine = create_engine(f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+engine = pg_engine(db_config)
 
 #ToDo: Modify process to appends new data to existing table
-completed_game_frame.to_sql(TABLE_NAME, engine, schema = "staging", if_exists="replace", index=False,
+completed_game_frame.to_sql("completd_games", engine, schema = "staging", if_exists="replace", index=False,
                             dtype = {"home_pct":Float(), 
                                      "away_pct":Float()})
