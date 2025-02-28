@@ -1,11 +1,8 @@
-/*
-ToDo: Modify extract to produce all lower cols
-*/
 
 {{ config(materialized='table') }}
 
 SELECT 
-"gamePk"
+gamepk
 , home_win
 , home_wins
 , home_losses

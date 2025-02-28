@@ -38,13 +38,15 @@ for date in response.json().get("dates"):
             pass
         else:
             #ToDo: Define a function or use config to define these? 
+            #More on gameTypes https://statsapi.mlb.com/api/v1/gameTypes
+            gametype = game['gameType']
             away_id = game['teams']['away']['team']['id']
             home_id = game['teams']['home']['team']['id']
             home_wins = game['teams']['home']['leagueRecord']['wins']
-            home_losses = game['teams']['home']['leagueRecord']['wins']
+            home_losses = game['teams']['home']['leagueRecord']['losses']
             home_pct =  game['teams']['home']['leagueRecord']['pct']
             away_wins = game['teams']['away']['leagueRecord']['wins']
-            away_losses = game['teams']['away']['leagueRecord']['wins']
+            away_losses = game['teams']['away']['leagueRecord']['losses']
             away_pct =  game['teams']['away']['leagueRecord']['pct']
 
 
@@ -57,8 +59,9 @@ for date in response.json().get("dates"):
                 game_winner = home_id
                 home_win = 1
 
-            game_info = {"gamePk":game["gamePk"],
-                        "gameDate":game["gameDate"], 
+            game_info = {"gamepk":game["gamePk"],
+                        "gamedate":game["officialDate"],
+                        "gametype":gametype,
                         "home_id":home_id,
                         "away_id":away_id,
                         "winner": game_winner,
