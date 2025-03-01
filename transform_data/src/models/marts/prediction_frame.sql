@@ -14,6 +14,6 @@ gamepk
 , away_wins
 , away_losses
 , away_pct
-FROM staging.scheduled_games
+FROM {{ source('mlb_api', 'schedule_endpoint') }}
 WHERE gamedt::timestamptz > CURRENT_TIMESTAMP
 

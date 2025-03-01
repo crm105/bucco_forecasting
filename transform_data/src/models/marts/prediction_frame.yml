@@ -1,5 +1,3 @@
-version: 2
-
 models:
   - name: prediction_frame
     description: Curates processed data ready for predicting outcome of game 

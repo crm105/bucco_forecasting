@@ -9,6 +9,11 @@ sys.path.append('..')
 from datetime import date
 from utils.utils import pg_engine
 from utils.extract_utils import process_schedule_response
+from dagster_dbt import get_asset_key_for_source
+from transform_data import dbt_definitions as la
+
+
+dbt_assets = dg.load_assets_from_modules([la])
 
 
 today = date.today().strftime("%Y-%m-%d")
@@ -22,7 +27,9 @@ params = {"sportId" :1,
           "endDate":"2025-12-31",
           }
 
-@dg.asset
+
+
+@dg.asset(key=get_asset_key_for_source(dbt_assets, "mlb_api"))
 def schedule_endpoint():
     ## Read data from the CSV
     url = f"https://statsapi.mlb.com/api/v1/{endpoint}"
@@ -37,7 +44,7 @@ def schedule_endpoint():
     engine = pg_engine(db_config)
 
     #ToDo: Modify process to append new data to existing table
-    schedule_data.to_sql('schedule_endpoint', engine, schema = "staging", if_exists="replace", index=False)
+    schedule_data.to_sql('schedule_endpoint', engine, schema = "mlb_api", if_exists="replace", index=False)
 
     return "Data loaded successfully"
 

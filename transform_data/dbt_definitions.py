@@ -19,6 +19,5 @@ dbt_project.prepare_if_dev()
 def dbt_models(context: dg.AssetExecutionContext, dbt: DbtCliResource):
     yield from dbt.cli(["build"], context=context).stream()
 
-
 # Dagster object that contains the dbt assets and resource
 defs = dg.Definitions(assets=[dbt_models], resources={"dbt": dbt_resource})

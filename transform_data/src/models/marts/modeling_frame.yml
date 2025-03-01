@@ -1,5 +1,3 @@
-version: 2
-
 models:
   - name: modeling_frame
     description: Curates processed, forecast model ready data 

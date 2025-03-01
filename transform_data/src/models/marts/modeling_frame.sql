@@ -11,4 +11,4 @@ gamepk
 , away_losses
 , away_pct
 , CASE WHEN winner = 134 THEN 1 ELSE 0 END AS pirates_win
-FROM staging.game_results
+FROM {{ source('mlb_api', 'schedule_endpoint') }}
