@@ -14,5 +14,11 @@ def pg_engine(connection_params):
     Returns: 
         sqlalchemy.engine.base.Engine
     """
-    connection = "postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}".format(**connection_params)
+    DB_USERNAME = connection_params['DB_USERNAME']
+    DB_PASSWORD = connection_params['DB_PASSWORD']
+    DB_HOST = connection_params['DB_HOST']
+    DB_PORT = connection_params['DB_PORT']
+    DB_NAME = connection_params['DB_NAME']
+
+    connection = f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
     return create_engine(connection)
