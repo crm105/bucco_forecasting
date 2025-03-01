@@ -24,6 +24,8 @@ from utils.utils import pg_engine
 today = date.today().strftime("%Y-%m-%d")
 
 endpoint = "schedule"
+#ToDo: Allow for endDate to be determined dynamically
+#i.e. just end of calendar year? 
 params = {"sportId" :1,
           "teamId":134,
           "startDate":today,
@@ -32,7 +34,6 @@ params = {"sportId" :1,
 
 url = f"https://statsapi.mlb.com/api/v1/{endpoint}"
 response = requests.get(url, params = params)
-
 
 games = []
 for date in response.json().get("dates"):

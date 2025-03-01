@@ -11,13 +11,16 @@ from utils.utils import pg_engine
 from sklearn.linear_model import LinearRegression
 
 
-#ToDo: Offload Engine Creation to Util, Draw from environmental variables 
 with open("../db_config.yml", "r") as file:
     db_config = yaml.safe_load(file)
 
 engine = pg_engine(db_config)
 
 # Let's only consider the week ahead 
+"""ToDo: Consider adding safeguards to ensure predictions are for future
+games here. Currently handeled only in transform. Can fail if predictions occur 
+well after prediction frame is created
+"""
 
 query = f"""SELECT * FROM crm_mart.prediction_frame
             WHERE gamedate < CURRENT_DATE + 7"""

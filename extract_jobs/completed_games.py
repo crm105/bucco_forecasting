@@ -3,6 +3,7 @@ Script for retreiving completed games from MLB stats api 'schedule' endpoint
 Request returns highly nested json. Longer term I should aspire to having a single script for 
 retreiving data from API and loading into DB. For now, I plan to hardcode and slowly abstract away 
 
+ToDo: Allow for new games to be appended to table without duplication
 ToDo: Allow script to be executed via shell script
 ToDo: pre-commit hook
 ToDo: Move hardcoded params to configs
@@ -15,7 +16,6 @@ ToDo: Parse Additional fields
 
 import numpy as np
 import pandas as pd
-import pickle
 import requests
 import yaml
 
@@ -27,6 +27,14 @@ from sklearn.linear_model import LinearRegression
 from sqlalchemy import Float
 
 endpoint = "schedule"
+"""
+ToDo: Think about how we want to specify dates once in production.
+Need to be able to:
+
+ 1.) Identify most recent date for which completed game data are collected
+ 2.) Collect all completed game info for dates after that point
+ 3.) Append collected game info to existing table 
+"""
 params = {"sportId" :1,
           "teamId":134,
           "startDate":"2024-04-20",
@@ -55,7 +63,6 @@ for date in response.json().get("dates"):
             away_wins = game['teams']['away']['leagueRecord']['wins']
             away_losses = game['teams']['away']['leagueRecord']['losses']
             away_pct =  game['teams']['away']['leagueRecord']['pct']
-
 
             #ToDo: Allow for handling of ties, incomplete games
             #Should winner field be reserved for downstream transform steps?
@@ -91,7 +98,11 @@ with open("../db_config.yml", "r") as file:
 
 engine = pg_engine(db_config)
 
+#Get completed games already recorded in PG, filter out before saving
+game_ids = pd.read_sql("SELECT gamepk FROM staging.completed_games", con = engine)
+completed_game_frame = completed_game_frame[~completed_game_frame.gamepk.isin(game_ids.gamepk)]
+
 #ToDo: Modify process to appends new data to existing table
-completed_game_frame.to_sql("completd_games", engine, schema = "staging", if_exists="replace", index=False,
+completed_game_frame.to_sql("completed_games", engine, schema = "staging", if_exists="append", index=False,
                             dtype = {"home_pct":Float(), 
                                      "away_pct":Float()})
