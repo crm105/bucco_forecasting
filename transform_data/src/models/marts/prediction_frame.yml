@@ -9,6 +9,12 @@ models:
         data_tests:
           - unique
           - not_null
+      - name: gamedate
+        description: Date game is to be played
+        type: date 
+      - name: game_timestamp
+        description: Date and UTC time game is to begin
+        type: timestamptz
       - name: home_wins
         description: Total home team victories on the season prior to game being played 
       - name: home_losses

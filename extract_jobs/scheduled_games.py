@@ -54,6 +54,7 @@ for date in response.json().get("dates"):
 
             game_info = {"gamepk":game["gamePk"],
                         "gamedate":game["officialDate"],
+                        "gamedt": game['gameDate'].replace('T', ' ')[:-1],
                         "gametype":gametype,
                         "home_id":home_id,
                         "away_id":away_id,

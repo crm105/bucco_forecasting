@@ -3,7 +3,8 @@
 
 SELECT 
 gamepk
-, gamedate
+, gamedate::DATE
+, gamedt::timestamptz AS game_timestamp 
 , gametype
 , home_id
 , away_id
@@ -14,3 +15,5 @@ gamepk
 , away_losses
 , away_pct
 FROM staging.scheduled_games
+WHERE gamedt::timestamptz > CURRENT_TIMESTAMP
+
