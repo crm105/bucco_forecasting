@@ -1,0 +1,7 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.dagster]
+modules = [{ type = "module", name = "transform_data.dbt_definitions"},
+            { type = "module", name = "extract_jobs.extract_assets"}]
