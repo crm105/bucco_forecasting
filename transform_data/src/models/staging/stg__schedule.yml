@@ -1,0 +1,98 @@
+version: 2
+
+models:
+  - name: stg__schedule
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: season
+        description: Year game was played or is scheduled to be played
+        data_type: int
+      - name: gamepk
+        description: Unique identifier for a given ballgame
+        data_type: bigint
+        tests: 
+          - unique
+      - name: gamedate
+        description: date ballgame is/was scheduled to be played
+        data_type: date
+      - name: gamedt
+        description: timestamp ballgame is/was scheduled to be played
+        data_type: timestamptz
+      - name: gametype
+        description: Type of game to be played (i.e. spring training, regular season, playoffs)
+        data_type: varchar
+      - name: game_status
+        description: Status of game (i.e. scheduled, completed, postponed)
+        data_type: varchar
+      - name: home_id
+        description: id of home team playing in game
+        data_type: int
+      - name: away_id
+        description: id of away team playing in game
+        data_type: int
+      - name: home_win
+        description: binary indicator of whether home team won ballgame
+        data_type: int
+      - name: home_score
+        description: Total runs scored by home team in game
+        data_type: int
+      - name: away_score
+        description: Total runs scored by away team in game
+        data_type: int
+      - name: home_wins
+        description: Home team win total at ballgame conclusion (if final)
+        data_type: int
+      - name: away_wins
+        description: Away team win total at ballgame conclusion (if sfinal)
+        data_type: int
+      - name: home_losses
+        description: Home team loss total at ballgame conclusion (if final)
+        data_type: int
+      - name: away_losses
+        description: Away team los total at ballgame conclusion (if final)
+        data_type: int
+      - name: home_pct
+        description: Home team winning percentage at ballgame conclusion (if final)
+        data_type: float
+      - name: away_pct
+        description: Away team winning percentage at ballgame conclusion (if final)
+        data_type: float
+      - name: home_pitcher_era_postgame
+        description: > 
+          Earned run average of home team probable pitcher at ballgame conclusion (if final)
+        data_type: float
+      - name: away_pitcher_era_postgame
+        description: > 
+          Earned run average of away team probable pitcher at ballgame conclusion (if final)
+        data_type: float
+      - name: home_pitcher_innings_pitched_postgame
+        description: > 
+          Total innings pitched of home team probable pitcher at ballgame conclusion (if final)
+        data_type: float
+      - name: away_pitcher_innings_pitched_postgame
+        description: > 
+          Total innings pitched of away team probable pitcher at ballgame conclusion (if final)
+        data_type: float
+      - name: home_pitcher_earned_runs_game
+        description: Number of earned runs allowed by home probable pitcher during game
+        data_type: int
+      - name: away_pitcher_earned_runs_game
+        description: Number of earned runs allowed by away probable pitcher during game
+        data_type: int
+      - name: home_pitcher_earned_runs_postgame
+        description: Total earned runs allowed by home pitcher at ballgame conclusion (if final)
+        data_type: int
+      - name: away_pitcher_earned_runs_postgame
+        description: Total earned runs allowed by away pitcher at ballgame conclusion (if final)
+        data_type: int
+      - name: home_pitcher_innings_pitched_game
+        description: Number of earned runs allowed by home pitcher during game (if final)
+        data_type: float
+      - name: away_pitcher_innings_pitched_game
+        description: Number of earned runs allowed by away pitcher during game (if final)
+        data_type: float
+      - name: last_updated_datetime
+        description: Datetime when data model was last run
+        data_type: timestamptz

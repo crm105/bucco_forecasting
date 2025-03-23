@@ -1,0 +1,12 @@
+version: 2
+
+sources:
+  - name: mlb_api
+    database: pirates_forecast  
+    schema: mlb_api  
+    tables:
+      - name: schedule_endpoint
+        meta:
+          dagster:
+            asset_key: ['mlb_api', 'schedule_endpoint']
+            group_name: 'extract'
