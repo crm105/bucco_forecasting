@@ -1,0 +1,13 @@
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/sqlfluff/sqlfluff
+    rev: <LATEST_SQLFLUFF_VERSION> # Replace with the latest version tag from GitHub releases
+    hooks:
+      - id: sqlfluff-lint
+        args: [--dialect, <YOUR_SQL_DIALECT>, --exclude-rules, L001, L002] # Customize as needed
+        types: [sql]
+        files: \.(sql)$ # Target SQL files
+      - id: sqlfluff-fix
+        args: [--dialect, <YOUR_SQL_DIALECT>, --exclude-rules, L001, L002, --fix] # Customize as needed
+        types: [sql]
+        files: \.(sql)$ # Target SQL files
