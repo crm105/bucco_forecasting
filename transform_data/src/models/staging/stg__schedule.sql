@@ -1,3 +1,5 @@
+{{ config(materialized='table') }}
+
 SELECT 
 DATE_PART('year', gamedate::DATE)::INT AS season 
 , gamepk::BIGINT
