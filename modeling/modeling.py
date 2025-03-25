@@ -8,10 +8,7 @@ sys.path.append('..')
 from sklearn.linear_model import LinearRegression
 from utils.utils import pg_engine
 
-with open("../db_config.yml", "r") as file:
-    db_config = yaml.safe_load(file)
-
-engine = pg_engine(db_config)
+engine = pg_engine()
 
 query = "SELECT * FROM crm_mart.modeling_frame"
 modeling_frame = pd.read_sql(query, con = engine )
@@ -25,7 +22,10 @@ ToDo: Define parameters, features in config
 ToDo: Enable Feature Transformations
 """
 
-features = ['home_pct', 'away_pct']
+with open('../modeling/modeling_config.yml', "r") as file:
+        ml_config = yaml.safe_load(file)
+
+features = ml_config['features']  
 X = modeling_frame[features]
 y = modeling_frame.home_win
 
