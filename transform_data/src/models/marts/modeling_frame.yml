@@ -21,3 +21,61 @@ models:
         description: Total away team losses on the season prior to game being played
       - name: away_pct
         description: Away team winning percentage prior to game being played
+      - name: home_pitcher_era_pregame
+        description: Earned Run Average of home probable pitcher prior to game
+        data_type: float
+      - name: away_pitcher_era_pregame
+        description: Earned Run Average of away probable pitcher prior to game
+        data_type: float
+      - name: home_pitcher_innings_pitched_pregame
+        description: Total innings pitched by home probable pitcher prior to game
+        data_type: float
+      - name: away_pitcher_innings_pitched_pregame
+        description: Total innings pitched by away probable pitcher prior to game
+        data_type: float
+      - name: home_team_total_team_runs_scored
+        description: Total season runs scored by home team prior to game
+        data_type: int 
+      - name: away_team_total_team_runs_scored
+        description: Total season runs scored by away team prior to game
+        data_type: int 
+      - name: home_team_total_runs_allowed
+        description: Total season runs allowed by home team prior to game
+        data_type: int
+      - name: away_team_total_runs_allowed
+        description: Total season runs allowed by away team prior to game
+        data_type: int
+      - name: home_team_runs_per_game
+        description: Average runs scored per game by home team prior to game
+        data_type: float
+      - name: away_team_runs_per_game
+        description: Average runs scored per game by away team prior to game
+        data_type: float
+      - name: home_team_runs_allowed_per_game
+        description: Average runs allowed per game by home team prior to game
+        data_type: float
+      - name: away_team_runs_allowed_per_game
+        description: Average runs allowed per game by away team prior to game
+        data_type: float
+      - name: home_team_run_differential_per_game
+        description: Average run differential for home team prior to game
+        data_type: float
+      - name: away_team_run_differential_per_game
+        description: Average run differential for away team prior to game
+        data_type: float
+      - name: home_team_pythagorean_win_percentage
+        description: Pythagorean win percentage of home team prior to game
+        data_type: float
+      - name: away_team_pythagorean_win_percentage
+        description: Pythagorean win percentage of away team prior to game
+        data_type: float
+      - name: total_home_team_games_played_season
+        description: Number of games played by home team during season prior to game
+        data_type: int
+      - name: total_away_team_games_played_season
+        description: Number of games played by away team during season prior to game
+        data_type: int
+      - name: last_updated_datetime
+        description: Timestamp of when model was last created
+        data_type: timestamptz
+        

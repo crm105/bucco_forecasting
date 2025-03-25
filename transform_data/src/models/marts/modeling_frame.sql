@@ -5,12 +5,12 @@ WITH FINAL AS (
 SELECT 
 a.gamepk
 , a.home_win
-, a.home_wins
-, a.home_losses
-, a.home_pct
-, a.away_wins
-, a.away_losses
-, a.away_pct
+, home_join.total_team_wins AS total_home_team_wins_todate
+, home_join.total_team_losses AS total_home_team_losses_todate
+, home_join.team_win_pct AS home_team_win_percentage_todate
+, away_join.total_team_wins AS total_away_team_wins_todate
+, away_join.total_team_losses AS total_away_team_losses_todate
+, away_join.team_win_pct AS away_team_win_percentage_todate
 , b.home_pitcher_era_pregame
 , b.away_pitcher_era_pregame
 , b.home_pitcher_innings_pitched_pregame
@@ -29,23 +29,18 @@ a.gamepk
 , away_join.runs_allowed_per_game AS away_team_runs_allowed_per_game
 , away_join.pythagorean_win_percentage AS away_team_pythagorean_win_percentage
 , away_join.total_games_played AS total_away_team_games_played_season
-, CURRENT_TIMESTAMP AS last_updated_datetime
-
-
+, timezone('utc', now())AS last_updated_datetime
 
 FROM {{ ref('stg__schedule') }} a
 LEFT JOIN {{ ref('int__pitcher_gametime_era') }} b USING(gamepk)
-
 LEFT JOIN {{ ref('int__games_by_team') }} home_join
     ON a.gamepk = home_join.gamepk
     AND a.home_id = home_join.team_id
     AND home_join.home_game = 1
-
 LEFT JOIN {{ ref('int__games_by_team') }} away_join
     ON a.gamepk = away_join.gamepk
     AND  a.away_id = away_join.team_id
     AND away_join.home_game = 0
-
 WHERE a.game_status = 'F'
 )
 
