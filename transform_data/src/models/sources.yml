@@ -10,3 +10,13 @@ sources:
           dagster:
             asset_key: ['mlb_api', 'schedule_endpoint']
             group_name: 'extract'
+  - name: spotrac
+    database: pirates_forecast
+    schema: spotrac
+    tables:
+      - name: payroll_tables
+        meta:
+          dagster:
+            asset_key: ['spotrac', 'payroll_tables']
+            group_name: 'extract'
+         

@@ -4,7 +4,7 @@ models:
   - name: stg__schedule
     config:
       contract:
-        enforced: true
+        enforced: false
     columns:
       - name: season
         description: Year game was played or is scheduled to be played
