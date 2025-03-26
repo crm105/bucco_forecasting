@@ -1,5 +1,5 @@
 import dagster as dg
-from dagster_dbt import dbt_assets, get_asset_key_for_model
+from dagster_dbt import get_asset_key_for_model
 from transform_data import transform_assets
 
 from datetime import datetime
@@ -33,22 +33,28 @@ def model_predictions():
     features = ml_config['features']  
     
     #ToDo: Think of better way to fillna
+    #ToDo: Remove superfluous training features from final output table
+    #Reasoning- Model features are too unstable at this point, causing headaches for
+    #Updating table
     X = prediction_frame[features]
     X = X.fillna(-1000)
 
     with open('modeling/saved_models/model.pkl','rb') as f:
         model = pickle.load(f)
 
+    publish_cols = ['season','gamepk', 'gamedate', 'gamedt', 'home_id',
+                     'home_team_abbr', 'away_id', 'away_team_abbr' ]
+    publish_frame = prediction_frame[publish_cols]
+
     predicted_prob = model.predict_proba(X.to_numpy())[:,1]
-    prediction_frame['home_win_prob'] = predicted_prob
-    prediction_frame['home_win_predicted'] = np.rint(predicted_prob)
+    publish_frame['home_win_prob'] = predicted_prob
+    publish_frame['home_win_predicted'] = np.rint(predicted_prob)
 
-    prediction_frame['forecast_date'] = datetime.today().strftime("%Y-%m-%d")
-    prediction_frame['forecast_datetime'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    publish_frame['forecast_date'] = datetime.today().strftime("%Y-%m-%d")
+    publish_frame['forecast_datetime'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    #Save prediction into PG
-    prediction_frame.to_sql(name = "completed_predictions", schema = "crm_mart", con = engine,
+
+    publish_frame.to_sql(name = "completed_predictions", schema = "crm_mart", con = engine,
                             if_exists = "append", index=False, 
                             method = _postgres_upsert)
-
 del(assets)
