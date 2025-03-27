@@ -21,13 +21,15 @@ today = date.today().strftime("%Y-%m-%d")
 
 endpoint = "schedule"
 #ToDo: Allow for endDate to be determined dynamically
-#i.e. just end of calendar year? 
-params = {"sportId" :1,
-          "teamId":134,
+#i.e. just end of calendar year?
+params = {"sportId":1,
+          "gameTypes":'R',
           "startDate":"2025-01-01",
           "endDate":"2025-12-31",
+          "hydrate":'probablePitcher,stats'
           }
 
+engine = pg_engine()
 
 @dg.asset(key=get_asset_key_for_source(dbt_assets, "mlb_api"))
 def schedule_endpoint():
@@ -36,8 +38,6 @@ def schedule_endpoint():
     response = requests.get(url, params = params)
 
     schedule_data = process_schedule_response(response, game_status = "any")
-
-    engine = pg_engine()
 
     #ToDo: Modify process to append new data to existing table
     schedule_data.to_sql('schedule_endpoint', engine, schema = "mlb_api", if_exists="append", index=False,
