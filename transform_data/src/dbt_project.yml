@@ -28,9 +28,11 @@ clean-targets:         # directories to be removed by `dbt clean`
 
 models:
   pirates_forecast:
-    staging: 
+    staging:
       +schema: staging
     intermediate:
       +schema: intermediate
     marts:
       +schema: mart
+    seeds:
+      +schema: seeds
