@@ -12,7 +12,7 @@ models:
       - name: gamepk
         description: Unique identifier for a given ballgame
         data_type: bigint
-        tests: 
+        tests:
           - unique
       - name: gamedate
         description: date ballgame is/was scheduled to be played
@@ -29,9 +29,21 @@ models:
       - name: home_id
         description: id of home team playing in game
         data_type: int
+      - name: home_team_abbr
+        description: Home team name abbreviation
+        data_type: varchar
+      - name: home_team_name
+        description: Name and city of home team
+        data_type: varchar
       - name: away_id
         description: id of away team playing in game
         data_type: int
+      - name: away_team_abbr
+        description: Home team name abbreviation
+        data_type: varchar
+      - name: away_team_name
+        description: Name and city of home team
+        data_type: varchar
       - name: home_win
         description: binary indicator of whether home team won ballgame
         data_type: int
@@ -60,19 +72,19 @@ models:
         description: Away team winning percentage at ballgame conclusion (if final)
         data_type: float
       - name: home_pitcher_era_postgame
-        description: > 
+        description: >
           Earned run average of home team probable pitcher at ballgame conclusion (if final)
         data_type: float
       - name: away_pitcher_era_postgame
-        description: > 
+        description: >
           Earned run average of away team probable pitcher at ballgame conclusion (if final)
         data_type: float
       - name: home_pitcher_innings_pitched_postgame
-        description: > 
+        description: >
           Total innings pitched of home team probable pitcher at ballgame conclusion (if final)
         data_type: float
       - name: away_pitcher_innings_pitched_postgame
-        description: > 
+        description: >
           Total innings pitched of away team probable pitcher at ballgame conclusion (if final)
         data_type: float
       - name: home_pitcher_earned_runs_game

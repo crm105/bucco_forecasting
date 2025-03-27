@@ -1,7 +1,7 @@
 {{ config(materialized='table') }}
 
 WITH team_games AS (
-SELECT 
+SELECT
 home_id AS team_id
 , season
 , gamepk
@@ -13,9 +13,7 @@ home_id AS team_id
 , home_win AS team_win
 , home_score AS team_score
 , away_score AS opponent_score
---ToDo: Deal with leakage in total team wins and win percentage
 , 1 AS home_game
-, last_updated_datetime
 FROM {{ ref('stg__schedule') }}
 UNION
 SELECT
@@ -30,8 +28,7 @@ away_id AS team_id
 , 1-home_win AS team_win
 , away_score AS team_score
 , home_score AS opponent_score
-, 0 AS home_game 
-, last_updated_datetime
+, 0 AS home_game
 FROM {{ ref('stg__schedule') }}
 ORDER BY team_id, gamedt
 )
@@ -47,7 +44,7 @@ ORDER BY team_id, gamedt
     , SUM(1-team_win) OVER (PARTITION BY team_id, gametype, season ORDER BY gamedt ASC ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS total_team_losses
     , SUM(team_score) OVER (PARTITION BY team_id, gametype, season ORDER BY gamedt ASC ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS total_team_runs_scored
     , SUM(opponent_score) OVER (PARTITION BY team_id, gametype, season ORDER BY gamedt ASC ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS total_team_runs_allowed
- 
+
     FROM team_games
 )
 
@@ -70,5 +67,3 @@ ORDER BY team_id, gamedt
 )
 
 SELECT * FROM final
-
---https://www.mlb.com/glossary/advanced-stats/pythagorean-winning-percentage

@@ -1,0 +1,79 @@
+version: 2
+
+models:
+  - name: int__games_by_team
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: season
+        description: Year game was played or is scheduled to be played
+        data_type: int
+      - name: team_id
+        description: 3 digit ID team identifier
+        data_type: int
+      - name: gamepk
+        description: Unique identifier for a given ballgame
+        data_type: bigint
+      - name: gamedate
+        description: date ballgame is/was scheduled to be played
+        data_type: date
+      - name: gamedt
+        description: timestamp ballgame is/was scheduled to be played
+        data_type: timestamptz
+      - name: gametype
+        description: Type of game to be played (i.e. spring training, regular season, playoffs)
+        data_type: varchar
+      - name: opponent
+        description: 3 digit identifier of opponent
+        data_type: int
+      - name: game_status
+        description: Status of game (i.e. scheduled, completed, postponed)
+        data_type: varchar
+      - name: team_win
+        description: binary indicator of whether team won ballgame
+        data_type: int
+      - name: team_score
+        description: Total runs scored by team in game
+        data_type: int
+      - name: opponent_score
+        description: Total runs scored by opponent in game
+        data_type: int
+      - name: home_game
+        description: Binary indicator of whether team was hosted ballgame
+        data_type: int
+      - name: total_games_played
+        description: Number of games played by team prior to current game
+        data_type: bigint
+      - name: total_team_wins
+        description: Number of games won prior to current game
+        data_type: bigint
+      - name: total_team_losses
+        description: Number of games lost prior to current game
+        data_type: bigint
+      - name: team_win_pct
+        description: Team winning percentage prior to current game
+        data_type: float
+      - name: total_team_runs_scored
+        description: Total number of runs scored by team prior to current game
+        data_type: bigint
+      - name: total_team_runs_allowed
+        description: Total number of runs allowed by team prior to current game
+        data_type: bigint
+      - name: run_differential
+        description: Difference in total runs scored vs. allowed prior to current game
+        data_type: bigint
+      - name: runs_per_game
+        description: Average number of runs scored per game prior to current game
+        data_type: float
+      - name: runs_allowed_per_game
+        description: Average number of runs allowed per game prior to current game
+        data_type: float
+      - name: run_differential_per_game
+        description: Average run differential per game prior to current game
+        data_type: float
+      - name: pythagorean_win_percentage
+        description: >
+          Pythagorean win percentage of team prior to current game see:
+          https://www.mlb.com/glossary/advanced-stats/pythagorean-winning-percentage
+        data_type: float

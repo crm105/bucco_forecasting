@@ -1,9 +1,13 @@
 
 {{ config(materialized='table') }}
 
-WITH FINAL AS (
-SELECT 
-a.gamepk
+WITH final AS (
+SELECT
+a.season
+, a.gamedate
+, a.gamepk
+, a.home_team_abbr
+, a.away_team_abbr
 , a.home_win
 , home_join.total_team_wins AS total_home_team_wins_todate
 , home_join.total_team_losses AS total_home_team_losses_todate
@@ -12,10 +16,16 @@ a.gamepk
 , away_join.total_team_losses AS total_away_team_losses_todate
 , away_join.team_win_pct AS away_team_win_percentage_todate
 , home_join.team_win_pct - away_join.team_win_pct AS win_pct_diff
-, b.home_pitcher_era_pregame
-, b.away_pitcher_era_pregame
-, b.home_pitcher_innings_pitched_pregame
-, b.away_pitcher_innings_pitched_pregame
+, home_pitcher.pitcher_era_season AS home_pitcher_era_season
+, away_pitcher.pitcher_era_season AS away_pitcher_era_season
+, home_pitcher.pitcher_era_previous_season AS home_pitcher_era_previous_season
+, away_pitcher.pitcher_era_previous_season AS away_pitcher_era_previous_season
+, home_pitcher.pitcher_era_career AS home_pitcher_era_career
+, away_pitcher.pitcher_era_career AS away_pitcher_era_career
+, home_pitcher.cumulative_pitcher_innings_season AS home_pitcher_innings_pitched_season
+, away_pitcher.cumulative_pitcher_innings_season AS away_pitcher_innings_pitched_season
+, home_pitcher.cumulative_pitcher_innings_career AS home_pitcher_innings_pitched_career
+, away_pitcher.cumulative_pitcher_innings_career AS away_pitcher_innings_putched_career
 , home_join.total_team_runs_scored AS total_home_team_runs_scored_todate
 , home_join.total_team_runs_allowed AS total_home_team_runs_allowed_todate
 , home_join.run_differential_per_game AS home_team_run_differential_per_game
@@ -42,7 +52,12 @@ a.gamepk
 , timezone('utc', now())AS last_updated_datetime
 
 FROM {{ ref('stg__schedule') }} a
-LEFT JOIN {{ ref('int__pitcher_gametime_era') }} b USING(gamepk)
+LEFT JOIN {{ ref('int__pitcher_statistics') }} home_pitcher
+   ON a.gamepk = home_pitcher.gamepk
+   AND a.home_pitcher_id = home_pitcher.pitcher_id
+LEFT JOIN {{ ref('int__pitcher_statistics') }} away_pitcher
+   ON a.gamepk = away_pitcher.gamepk
+   AND a.away_pitcher_id = away_pitcher.pitcher_id
 LEFT JOIN {{ ref('int__games_by_team') }} home_join
     ON a.gamepk = home_join.gamepk
     AND a.home_id = home_join.team_id
@@ -58,7 +73,7 @@ LEFT JOIN {{ ref('team_season_statistics')}} away_season_stats
    ON a.season = away_season_stats.season
    AND a.away_id = away_season_stats.team_id
 
-WHERE a.game_status = 'F'
+WHERE a.game_status = 'F' AND a.gametype = 'R'
 )
 
 SELECT * FROM final

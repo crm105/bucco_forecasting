@@ -4,8 +4,8 @@ WITH team_seed AS (
     SELECT * FROM {{ ref('team_ids') }}
 )
 
-SELECT 
-DATE_PART('year', gamedate::DATE)::INT AS season 
+SELECT
+DATE_PART('year', gamedate::DATE)::INT AS season
 , gamepk::BIGINT
 , gamedate::DATE
 , gamedt::TIMESTAMPTZ
@@ -19,13 +19,17 @@ DATE_PART('year', gamedate::DATE)::INT AS season
 ,  away_join.team_abbr::VARCHAR AS away_team_abbr
 , home_win::INT
 , home_score::INT
-, away_score::INT 
-, home_wins::INT 
+, away_score::INT
+, home_wins::INT
 , away_wins::INT
 , away_losses::INT
-, home_losses::INT 
-, home_pct::FLOAT 
+, home_losses::INT
+, home_pct::FLOAT
 , away_pct::FLOAT
+, home_pitcher_id
+, away_pitcher_id
+, home_pitcher_fullname
+, away_pitcher_fullname
 , away_pitcher_era_postgame::FLOAT
 , home_pitcher_era_postgame::FLOAT
 , home_pitcher_innings_pitched_postgame::FLOAT
