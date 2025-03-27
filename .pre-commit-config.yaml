@@ -1,13 +1,7 @@
-# .pre-commit-config.yaml
 repos:
-  - repo: https://github.com/sqlfluff/sqlfluff
+-   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.2.0
     hooks:
-      - id: sqlfluff-lint
-        args: [--dialect, postgres,]
-        types: [sql]
-        files: \.(sql)$ # Target SQL files
-      - id: sqlfluff-fix
-        args: [--dialect, postgres, --exclude-rules, L001, L002, --fix] # Customize as needed
-        types: [sql]
-        files: \.(sql)$ # Target SQL files
+    -   id: check-yaml
+    -   id: end-of-file-fixer
+    -   id: trailing-whitespace
