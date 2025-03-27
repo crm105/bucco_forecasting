@@ -1,0 +1,10 @@
+features:
+  - 'home_team_pythagorean_win_percentage'
+  - 'away_team_pythagorean_win_percentage'
+  - 'home_pitcher_era_season'
+  - 'away_pitcher_era_season'
+  - 'home_pitcher_era_previous_season'
+  - 'away_pitcher_era_previous_season'
+  - 'team_payroll_diff'
+  - 'total_home_team_wins_last_season'
+  - 'total_away_team_wins_last_season'
