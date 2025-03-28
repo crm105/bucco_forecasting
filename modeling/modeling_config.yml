@@ -1,10 +1,35 @@
 features:
-  - 'home_team_pythagorean_win_percentage'
-  - 'away_team_pythagorean_win_percentage'
-  - 'home_pitcher_era_season'
-  - 'away_pitcher_era_season'
-  - 'home_pitcher_era_previous_season'
-  - 'away_pitcher_era_previous_season'
-  - 'team_payroll_diff'
-  - 'total_home_team_wins_last_season'
-  - 'total_away_team_wins_last_season'
+  - home_team_pythagorean_win_percentage
+  - away_team_pythagorean_win_percentage
+  - home_pitcher_era_season
+  - away_pitcher_era_season
+  - home_pitcher_era_previous_season
+  - away_pitcher_era_previous_season
+  - total_home_team_wins_last_season
+  - total_away_team_wins_last_season
+  - home_team_payroll_z_score
+  - away_team_payroll_z_score
+  - team_payroll_diff_z_score
+  - total_home_team_games_played_season
+  - avg_home_team_age
+  - avg_away_team_age
+
+search_params:
+  n_estimators:
+    type: int
+    min: 50
+    max:  500
+  max_depth:
+    type: int
+    min: 1
+    max:  2
+  alpha:
+    type: real
+    min: 0.01
+    max: 10
+    scale:  log-uniform
+  learning_rate:
+    type: float
+    min: 0
+    max: 0.5
+    scale: uniform
