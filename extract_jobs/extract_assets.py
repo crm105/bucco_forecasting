@@ -6,26 +6,23 @@ import yaml
 import sys
 sys.path.append('..')
 
-from datetime import date
+from datetime import date, timedelta
 from utils.utils import pg_engine
 from utils.extract_utils import process_schedule_response, _postgres_upsert
 from dagster_dbt import get_asset_key_for_source
 from transform_data import dbt_definitions as la
 
-
-
 dbt_assets = dg.load_assets_from_modules([la])
 
-
-today = date.today().strftime("%Y-%m-%d")
+start_date = date.today() - timedelta(days=30)
+end_date = date.today() + timedelta(days=30)
 
 endpoint = "schedule"
-#ToDo: Allow for endDate to be determined dynamically
-#i.e. just end of calendar year?
+
 params = {"sportId":1,
           "gameTypes":'R',
-          "startDate":"2025-01-01",
-          "endDate":"2025-12-31",
+          "startDate":start_date,
+          "endDate":end_date.strftime("%Y-%m-%d"),
           "hydrate":'probablePitcher,stats'
           }
 
