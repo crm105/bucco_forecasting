@@ -20,7 +20,7 @@ dbt_resource = DbtCliResource(project_dir=dbt_project)
 
 daily_schedule = dg.ScheduleDefinition(
     name = "run_full_pipeline",
-    cron_schedule="0 0 * * *", 
+    cron_schedule="0 9 * * *",
     target = dg.AssetSelection.keys(["mlb_api", "schedule_endpoint"]).downstream(),
     default_status=dg.DefaultScheduleStatus.RUNNING
 )
