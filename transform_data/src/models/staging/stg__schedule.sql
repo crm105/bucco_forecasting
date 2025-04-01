@@ -27,19 +27,19 @@ DATE_PART('year', gamedate::DATE)::INT AS season
 , home_pct::FLOAT
 , away_pct::FLOAT
 , home_pitcher_id
-, away_pitcher_id
 , home_pitcher_fullname
-, away_pitcher_fullname
-, away_pitcher_era_postgame::FLOAT
 , home_pitcher_era_postgame::FLOAT
 , home_pitcher_innings_pitched_postgame::FLOAT
+, home_pitcher_innings_pitched_game::FLOAT
+, home_pitcher_earned_runs_game::INT
+, home_pitcher_earned_runs_postgame::INT
+, away_pitcher_id
+, away_pitcher_fullname
+, away_pitcher_era_postgame::FLOAT
 , away_pitcher_innings_pitched_postgame::FLOAT
 , away_pitcher_earned_runs_game::INT
 , away_pitcher_earned_runs_postgame::INT
 , away_pitcher_innings_pitched_game::FLOAT
-, home_pitcher_innings_pitched_game::FLOAT
-, home_pitcher_earned_runs_game::INT
-, home_pitcher_earned_runs_postgame::INT
 , CURRENT_TIMESTAMP AS last_updated_datetime
 FROM {{ source('mlb_api', 'schedule_endpoint') }} a
 LEFT JOIN team_seed AS home_join ON a.home_id = home_join.team_id

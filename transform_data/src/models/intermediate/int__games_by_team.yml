@@ -2,6 +2,9 @@ version: 2
 
 models:
   - name: int__games_by_team
+    description: >
+      Representation of game data with reference to teams involved. Each game
+      is represented in this model twice, once for each respective participant
     config:
       contract:
         enforced: true

@@ -1,3 +1,5 @@
+--ToDo: Refactor away from schedule endpoint source
+-- which does not capture relief pitcher appearances
 {{ config(materialized='table') }}
 
 WITH games_by_pitcher AS (
@@ -32,12 +34,12 @@ season
 , gamepk
 , gamedt
 , SUM(pitcher_innings_pitched_game) OVER(PARTITION BY pitcher_id, season ORDER BY gamedt ASC
- ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS cumulative_pitcher_innings_season
+ ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS cumulative_innings_pitched_season
 , SUM(pitcher_earned_runs_game) OVER(PARTITION BY pitcher_id, season ORDER BY gamedt ASC
  ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS cumulative_pitcher_earned_runs_season
 
  , SUM(pitcher_innings_pitched_game) OVER(PARTITION BY pitcher_id ORDER BY gamedt ASC
- ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS cumulative_pitcher_innings_career
+ ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS cumulative_innings_pitched_career
 , SUM(pitcher_earned_runs_game) OVER(PARTITION BY pitcher_id ORDER BY gamedt ASC
  ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) AS cumulative_pitcher_earned_runs_career
  FROM games_by_pitcher
@@ -55,9 +57,9 @@ GROUP BY season, pitcher_id
 
 , final AS (
     SELECT *
-    , 9 * cumulative_pitcher_earned_runs_season::FLOAT/NULLIF(cumulative_pitcher_innings_season,0) AS pitcher_era_season
+    , 9 * cumulative_pitcher_earned_runs_season::FLOAT/NULLIF(cumulative_innings_pitched_season,0) AS pitcher_era_season
     , 9 * previous_season_earned_runs::FLOAT/NULLIF(previous_season_innings_pitched,0) AS pitcher_era_previous_season
-    , 9 * cumulative_pitcher_earned_runs_career::FLOAT/NULLIF(cumulative_pitcher_innings_career,0) AS pitcher_era_career
+    , 9 * cumulative_pitcher_earned_runs_career::FLOAT/NULLIF(cumulative_innings_pitched_career,0) AS pitcher_era_career
     FROM cumulative_stats
     LEFT JOIN previous_season_stats USING (pitcher_id, season)
 )
