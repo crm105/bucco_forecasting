@@ -1,0 +1,33 @@
+version: 2
+
+models:
+  - name: int__team_statistics
+    description: >
+      Representation of team-season aggregated statistics
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: season
+        description: Year game was played or is scheduled to be played
+        data_type: int
+      - name: team_id
+        description: Team-specific identifier
+        data_type: bigint
+      - name: team_name
+        description: Full Name and city of team
+        data_type: varchar
+      - name: total_payroll
+        description: Team total dollar expenditure on players
+        data_type: bigint
+      - name: z_score_payroll
+        description: Z-score normalized representation of total team payroll
+        data_type: float
+      - name: avg_team_age
+        description: Average age of rostered team per spotrac
+        data_type: float
+      - name: team_total_wins_last_season
+        description: >
+          Total ballgames won by team in the previous season. Note a COVID-related
+          win percentage adjustment is applied to address shortened 2020 season
+        data_type: int
