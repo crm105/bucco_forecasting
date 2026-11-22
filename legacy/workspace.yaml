@@ -1,0 +1,5 @@
+load_from:
+  - grpc_server:
+      host: docker_define_assets
+      port: 4000
+      location_name: "define_assets_code"

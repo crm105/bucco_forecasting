@@ -1,0 +1,54 @@
+# Source manifest: what each source is, how it is fetched, and what to keep.
+#
+# retention:
+#   cache     Can be fetched again at any time. Lives in data/cache/ (gitignored).
+#   snapshot  Cannot be fetched again (or changes over time). Lives in data/manual/ and
+#             data/snapshots/ and is committed to git.
+
+settings:
+  # First season kept in the model tables. The first forecast target is the season after this.
+  history_start_season: 2000
+  # A season counts as complete this many days after its regular season end date
+  # (leaves room for tiebreaker games before the numbers are final).
+  completed_buffer_days: 3
+
+sources:
+  mlb_api:
+    description: >
+      MLB Stats API. Provides the season calendar (Opening Day, season end) and final
+      regular-season standings (wins, losses, runs, clinch status) for every team.
+      Verified 2000-2026: 30 teams per season, team ids stay the same through franchise
+      moves and renames (e.g. Expos to Nationals), league wins equal league losses.
+    base_url: https://statsapi.mlb.com/api/v1
+    auth: none
+    documentation: Undocumented; response shapes were checked by hand (see transform/README.md).
+    terms: >
+      Responses carry this notice: "Use of any content on this page acknowledges agreement
+      to the terms posted here http://gdx.mlb.com/components/copyright.txt". Personal,
+      non-commercial use only. Re-read the terms before publishing anything derived from it.
+    rate_limit: No published limit. The extractor waits 0.5 seconds between requests.
+    retention: cache
+    datasets:
+      seasons:
+        endpoint: /seasons/all
+        params: {sportId: 1}
+        output: data/cache/mlb_api/seasons.parquet
+        feeds: stg_mlb__seasons
+      standings:
+        endpoint: /standings
+        params: {leagueId: "103,104", standingsTypes: regularSeason}
+        note: One request per season. Only completed seasons are fetched.
+        output: data/cache/mlb_api/standings/season=<year>.parquet
+        feeds: stg_mlb__standings
+
+  manual_projections:
+    description: >
+      Preseason team win projections and betting win totals, collected by hand into CSV
+      files. No free, reliable historical archive has been confirmed yet, so this source is
+      a defined file format (see data/manual/projections/README.md) rather than a scraper.
+    retention: snapshot
+    datasets:
+      preseason_projections:
+        input: data/manual/projections/*.csv
+        output: data/snapshots/preseason_projections.parquet
+        feeds: stg_projections__preseason_wins

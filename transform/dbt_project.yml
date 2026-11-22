@@ -1,0 +1,37 @@
+name: bucco
+version: "0.1.0"
+config-version: 2
+profile: bucco
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+
+clean-targets:
+  - target
+  - dbt_packages
+
+vars:
+  # First season kept in the model tables. Matches config/sources.yml.
+  history_start_season: 2000
+  # A season with fewer games than this counts as shortened (2020 had 60).
+  full_season_min_games: 150
+  # Days after the regular season ends before a season counts as complete.
+  season_complete_buffer_days: 3
+
+models:
+  bucco:
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts
+
+seeds:
+  bucco:
+    +schema: seeds

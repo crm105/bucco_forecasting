@@ -1,0 +1,168 @@
+version: 2
+
+models:
+  - name: team_seasons
+    description: >
+      Actual results: one row per team per completed season from 2000 on. Used for scoring
+      forecasts in the backtest and as history for models. Models should read their inputs
+      from `team_season_features`, not from here, so the season being forecast is never visible
+      to them.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, team_id]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: team_id
+        description: '{{ doc("team_id") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('teams')
+              field: team_id
+      - name: team_abbr
+        description: Current team abbreviation, e.g. `PIT`.
+      - name: team_name
+        description: Current team name.
+      - name: league_id
+        description: 103 for the American League, 104 for the National League.
+      - name: division_id
+        description: MLB division id (200 to 205).
+      - name: games_played
+        description: '{{ doc("games_played") }}'
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 1
+              max_value: 165
+      - name: wins
+        description: '{{ doc("wins") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 165
+      - name: losses
+        description: '{{ doc("losses") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 165
+      - name: win_pct
+        description: '{{ doc("win_pct") }}'
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+      - name: runs_scored
+        description: Runs scored over the season.
+      - name: runs_allowed
+        description: Runs allowed over the season.
+      - name: run_diff
+        description: Runs scored minus runs allowed.
+      - name: is_shortened_season
+        description: '{{ doc("is_shortened_season") }}'
+      - name: made_playoffs
+        description: True if the team made the postseason (any berth).
+      - name: won_division
+        description: True if the team won its division (with or without a first-round bye).
+
+  - name: team_season_features
+    description: >
+      Inputs for forecasting: one row per team per season to forecast, with columns from the
+      PRIOR season only. Includes one row per team for the upcoming season (the season after
+      the latest completed one), where results do not exist yet. Nothing from the target
+      season appears in this table, which is what keeps the backtest honest.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, team_id]
+    columns:
+      - name: season
+        description: The season being forecast.
+        data_tests: [not_null]
+      - name: team_id
+        description: '{{ doc("team_id") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('teams')
+              field: team_id
+      - name: team_abbr
+        description: Current team abbreviation, e.g. `PIT`.
+      - name: team_name
+        description: Current team name.
+      - name: opening_day
+        description: >
+          Opening Day of the season being forecast. Null if MLB has not published that
+          season's calendar yet.
+      - name: has_prior_season
+        description: >
+          True if the team has a completed prior season in the table. False only for the first
+          season in the history window.
+        data_tests: [not_null]
+      - name: prior_season
+        description: The season before the one being forecast. Null when there is no prior season.
+      - name: prior_wins
+        description: Wins in the prior season.
+      - name: prior_losses
+        description: Losses in the prior season.
+      - name: prior_games_played
+        description: Games played in the prior season.
+      - name: prior_win_pct
+        description: >
+          Win percentage in the prior season. This is the prediction for model step 1 (last
+          year). Null when there is no prior season.
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+      - name: prior_runs_scored
+        description: Runs scored in the prior season.
+      - name: prior_runs_allowed
+        description: Runs allowed in the prior season.
+      - name: prior_run_diff
+        description: Runs scored minus runs allowed in the prior season.
+      - name: prior_season_shortened
+        description: True if the prior season was shortened (2020). Null when there is no prior season.
+      - name: prior_made_playoffs
+        description: True if the team made the playoffs in the prior season.
+
+  - name: external_projections
+    description: >
+      Hand-collected preseason win projections and betting win totals, with Opening Day and
+      days-before-Opening-Day attached. Feeds model step 2 (blend of public forecasts). Empty
+      until projection CSVs are added to data/manual/projections.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, source, as_of_date, team_id]
+    columns:
+      - name: season
+        description: Season being projected.
+        data_tests: [not_null]
+      - name: team_id
+        description: '{{ doc("team_id") }}'
+        data_tests: [not_null]
+      - name: team_abbr
+        description: Current team abbreviation, e.g. `PIT`.
+      - name: source
+        description: Lowercase name of where the numbers came from, e.g. `steamer`.
+      - name: kind
+        description: "`projection` for a model forecast, `market` for a betting win total."
+      - name: as_of_date
+        description: '{{ doc("as_of_date") }}'
+      - name: opening_day
+        description: Opening Day of the projected season. Null if the calendar has no entry.
+      - name: days_before_opening_day
+        description: >
+          Days between the projection date and Opening Day. Never negative (see
+          assert_projections_published_before_opening_day).
+      - name: projected_wins
+        description: Projected wins over a 162-game season. Betting totals can be fractional.
+      - name: projected_win_pct
+        description: Projected wins divided by 162. The scale models predict on.
+      - name: source_url
+        description: Where the numbers came from, if recorded.
+      - name: notes
+        description: Free-text notes from the input file.

@@ -1,0 +1,12 @@
+dagster
+dbt-postgres
+dagster-dbt
+dagster-postgres
+dagster-docker
+pandas
+pyyaml
+requests
+scikit-learn
+scikit-optimize
+sqlalchemy
+xgboost

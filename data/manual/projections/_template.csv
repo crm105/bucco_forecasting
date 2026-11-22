@@ -1,0 +1,2 @@
+season,source,kind,as_of_date,team_abbr,projected_wins,source_url,notes
+2027,example_source,projection,2027-03-20,PIT,76.0,https://example.com,Example row only. Replace with real data; a real file needs all 30 teams.

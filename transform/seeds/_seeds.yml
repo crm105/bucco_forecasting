@@ -1,0 +1,28 @@
+version: 2
+
+seeds:
+  - name: teams
+    description: >
+      The 30 current MLB teams, keyed by MLB Stats API team id. Hand-maintained. Used to attach
+      names and abbreviations to results, and to translate abbreviations in the hand-collected
+      projection files (the `aliases` column lists older and alternate abbreviations).
+      Abbreviations are this project's own convention; MLB uses a few different ones in
+      different places.
+    columns:
+      - name: team_id
+        description: '{{ doc("team_id") }}'
+        data_tests:
+          - unique
+          - not_null
+      - name: team_name
+        description: Current team name. Past names (e.g. Indians) are not tracked here.
+        data_tests: [not_null]
+      - name: team_abbr
+        description: Current abbreviation used in this project (e.g. `PIT`, `AZ`, `CWS`, `ATH`).
+        data_tests:
+          - unique
+          - not_null
+      - name: aliases
+        description: >
+          Older or alternate abbreviations separated by `|` (e.g. `OAK` for the Athletics).
+          Empty if there are none.

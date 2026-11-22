@@ -1,0 +1,120 @@
+version: 2
+
+models:
+  - name: stg_mlb__seasons
+    description: >
+      Season calendar from the MLB Stats API, with dates cast to date. Used to find Opening Day
+      and to tell which seasons are finished.
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests:
+          - unique
+          - not_null
+      - name: regular_season_start_date
+        description: Opening Day. Null for very old seasons.
+      - name: regular_season_end_date
+        description: Last scheduled regular-season day. Null for very old seasons.
+      - name: post_season_start_date
+        description: First postseason day.
+      - name: post_season_end_date
+        description: Last postseason day.
+      - name: has_wildcard
+        description: Whether the season had a wild card round or game.
+
+  - name: stg_mlb__standings
+    description: >
+      Final regular-season standings from the MLB Stats API, one row per team per season,
+      typed and otherwise unchanged. Includes every season the extract saved. The
+      completed-season filter is applied later, in int__team_seasons.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, team_id]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: team_id
+        description: '{{ doc("team_id") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('teams')
+              field: team_id
+      - name: team_name
+        description: Team name as the API reported it for that season.
+      - name: league_id
+        description: 103 for the American League, 104 for the National League.
+      - name: division_id
+        description: MLB division id (200 to 205).
+      - name: games_played
+        description: '{{ doc("games_played") }}'
+        data_tests: [not_null]
+      - name: wins
+        description: '{{ doc("wins") }}'
+        data_tests: [not_null]
+      - name: losses
+        description: '{{ doc("losses") }}'
+        data_tests: [not_null]
+      - name: runs_scored
+        description: Runs scored over the season.
+        data_tests: [not_null]
+      - name: runs_allowed
+        description: Runs allowed over the season.
+        data_tests: [not_null]
+      - name: division_rank
+        description: Finish in the division, 1 to 5.
+      - name: clinch_indicator
+        description: >
+          Playoff status. Null if the team missed the playoffs. `y` division winner, `z`
+          division winner with a first-round bye, `w` wild card, `x` other playoff berth
+          (2020 only).
+        data_tests:
+          - accepted_values:
+              values: ['x', 'y', 'z', 'w']
+      - name: fetched_at
+        description: UTC time the raw file was downloaded.
+
+  - name: stg_projections__preseason_wins
+    description: >
+      Hand-collected preseason win projections and betting win totals, typed and with text
+      trimmed and lowercased. Empty until projection CSVs are added.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, source, as_of_date, team_id]
+    columns:
+      - name: season
+        description: Season being projected.
+        data_tests: [not_null]
+      - name: source
+        description: Lowercase name of where the numbers came from, e.g. `steamer`.
+        data_tests: [not_null]
+      - name: kind
+        description: "`projection` for a model forecast, `market` for a betting win total."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['projection', 'market']
+      - name: as_of_date
+        description: '{{ doc("as_of_date") }}'
+        data_tests: [not_null]
+      - name: team_id
+        description: '{{ doc("team_id") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('teams')
+              field: team_id
+      - name: projected_wins
+        description: Projected wins over a 162-game season. Betting totals can be fractional.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 40
+              max_value: 125
+      - name: source_url
+        description: Where the numbers came from, if recorded.
+      - name: notes
+        description: Free-text notes from the input file.
+      - name: source_file
+        description: Name of the CSV the row came from.

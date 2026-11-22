@@ -1,0 +1,9 @@
+# No secrets here: DuckDB is a local file. The bucco command sets BUCCO_DATA_DIR so dbt and
+# the extract code always use the same data folder.
+bucco:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('BUCCO_DATA_DIR', '../data') }}/bucco.duckdb"
+      threads: 4

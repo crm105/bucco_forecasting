@@ -1,0 +1,24 @@
+env/
+.venv/
+.env
+priorities.txt
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+
+# New project: data that can be downloaded again, and build output.
+# data/manual/ and data/snapshots/ are NOT ignored: they can't be fetched again.
+data/cache/
+data/*.duckdb
+data/*.duckdb.wal
+data/manifest.jsonl
+transform/target/
+transform/dbt_packages/
+transform/logs/
+
+# Legacy game-model stack (archived)
+transform_data/src/profiles.yml
+legacy/transform_data/src/profiles.yml
+legacy/dagster/
+legacy/logs/
+legacy/transform_data/logs/

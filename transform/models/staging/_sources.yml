@@ -1,0 +1,104 @@
+version: 2
+
+# Raw files written by the extract code (src/bucco/extract). dbt-duckdb reads them in place
+# through the `external_location` setting, so the DuckDB file never holds a second copy.
+# BUCCO_DATA_DIR is set by the `bucco build` command; see config/sources.yml for details.
+
+sources:
+  - name: mlb_api
+    description: >
+      MLB Stats API (https://statsapi.mlb.com). Free, no key, undocumented. Saved by
+      `bucco extract mlb-seasons` and `bucco extract mlb-standings`. Rebuildable at any time.
+      Subject to MLB's terms (http://gdx.mlb.com/components/copyright.txt): personal,
+      non-commercial use.
+    tables:
+      - name: seasons
+        description: One row per MLB season since 1876 with the key calendar dates.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/seasons.parquet')"
+        columns:
+          - name: season_id
+            description: Season year, e.g. `2026`.
+          - name: regular_season_start_date
+            description: Opening Day. Empty for very old seasons.
+          - name: regular_season_end_date
+            description: Last scheduled regular-season day. Empty for very old seasons.
+          - name: post_season_start_date
+            description: First postseason day.
+          - name: post_season_end_date
+            description: Last postseason day.
+          - name: has_wildcard
+            description: Whether the season had a wild card round or game.
+          - name: fetched_at
+            description: UTC time the file was downloaded.
+
+      - name: standings
+        description: >
+          Final regular-season standings, one row per team per season, from 2000. One Parquet
+          file per season (`season=<year>.parquet`). Only completed seasons are saved, and each
+          file is checked for 30 teams and equal league wins and losses before it is written.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/standings/*.parquet')"
+        columns:
+          - name: season
+            description: Season year.
+          - name: team_id
+            description: MLB team id.
+          - name: team_name
+            description: Team name as the API reported it for that season (e.g. `Indians` in 2020).
+          - name: league_id
+            description: 103 for the American League, 104 for the National League.
+          - name: division_id
+            description: MLB division id (200 to 205).
+          - name: games_played
+            description: Games played.
+          - name: wins
+            description: Wins.
+          - name: losses
+            description: Losses.
+          - name: runs_scored
+            description: Runs scored over the season.
+          - name: runs_allowed
+            description: Runs allowed over the season.
+          - name: division_rank
+            description: Finish in the division, 1 to 5.
+          - name: clinch_indicator
+            description: >
+              Playoff status. Empty if the team missed the playoffs. `y` division winner,
+              `z` division winner with a first-round bye, `w` wild card, `x` other playoff
+              berth (2020 only). Checked against the expected number of playoff teams for
+              every season from 2000 to 2026.
+          - name: fetched_at
+            description: UTC time the file was downloaded.
+
+  - name: manual_projections
+    description: >
+      Preseason win projections and betting win totals collected by hand. Cannot be
+      downloaded again, so the source CSVs (data/manual/projections) and the combined file
+      are kept in git. Saved by `bucco extract projections`, which checks the files first.
+    tables:
+      - name: preseason_projections
+        description: >
+          One row per team per projection set. A set is one source's numbers as of one date.
+          The table is empty until projection CSVs are added.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/snapshots/preseason_projections.parquet')"
+        columns:
+          - name: season
+            description: Season being projected.
+          - name: source
+            description: Lowercase name of where the numbers came from, e.g. `steamer`.
+          - name: kind
+            description: "`projection` for a model forecast, `market` for a betting win total."
+          - name: as_of_date
+            description: Date the numbers were published or captured (text, `YYYY-MM-DD`).
+          - name: team_id
+            description: MLB team id, resolved from the abbreviation in the input file.
+          - name: projected_wins
+            description: Projected wins over a 162-game season. Betting totals can be fractional.
+          - name: source_url
+            description: Where the numbers came from, if recorded.
+          - name: notes
+            description: Free-text notes from the input file.
+          - name: source_file
+            description: Name of the CSV the row came from.

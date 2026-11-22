@@ -1,0 +1,53 @@
+version: 2
+
+models:
+  - name: int__pitcher_statistics
+    description: >
+      Representation of game data with reference to teams involved. Each game
+      is represented in this model twice, once for each respective participant
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: season
+        description: Year game was played or is scheduled to be played
+        data_type: int
+      - name: gamepk
+        description: Unique identifier for a given ballgame
+        data_type: bigint
+      - name:  gamedt
+        description: timestamp ballgame is/was scheduled to be played
+        data_type: timestamptz
+      - name:  pitcher_id
+        description: Probable pitcher unique identifier
+        data_type: bigint
+      - name:  pitcher_fullname
+        description: First and last name of probable pitcher
+        data_type: varchar
+      - name: cumulative_innings_pitched_season
+        description: Season innings pitched by probable pitcher during starts prior to game
+        data_type: float
+      - name: cumulative_pitcher_earned_runs_season
+        description: Season earned runs allowed by probable pitcher during starts prior to game
+        data_type: bigint
+      - name: cumulative_innings_pitched_career
+        description: Total career innings pitched by probable pitcher during starts prior to game
+        data_type: float
+      - name: cumulative_pitcher_earned_runs_career
+        description: Career earned runs allowed by probable pitcher during starts prior to game
+        data_type: bigint
+      - name: previous_season_innings_pitched
+        description: Prior season innings pitched by probable pitcher during starts
+        data_type: float
+      - name: previous_season_earned_runs
+        description: Prior season earned runs allowed by probable pitcher during starts
+        data_type: bigint
+      - name: pitcher_era_season
+        description:  Probable pitcher earned run average from starts prior to game
+        data_type: float
+      - name: pitcher_era_previous_season
+        description: Probable pitcher earned run average from starts from previous season
+        data_type: float
+      - name: pitcher_era_career
+        description: Probable pitcher career earned run average from starts
+        data_type: float

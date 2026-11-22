@@ -1,0 +1,47 @@
+version: 2
+
+models:
+  - name: int__team_seasons
+    description: >
+      One row per team per completed season from `history_start_season` (2000) on. Adds win
+      percentage, run differential, shortened-season and playoff flags to the standings, and
+      attaches team names. A season counts as complete once its regular season ended at least
+      `season_complete_buffer_days` ago, so a half-played season never shows up as a result.
+      The `team_seasons` mart exposes this table; it is kept as a separate step so later
+      sources (payroll, roster data) can be joined in here without changing the mart's grain.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, team_id]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+      - name: team_id
+        description: '{{ doc("team_id") }}'
+      - name: team_abbr
+        description: Current team abbreviation, e.g. `PIT`.
+      - name: team_name
+        description: Current team name.
+      - name: league_id
+        description: 103 for the American League, 104 for the National League.
+      - name: division_id
+        description: MLB division id (200 to 205).
+      - name: games_played
+        description: '{{ doc("games_played") }}'
+      - name: wins
+        description: '{{ doc("wins") }}'
+      - name: losses
+        description: '{{ doc("losses") }}'
+      - name: win_pct
+        description: '{{ doc("win_pct") }}'
+      - name: runs_scored
+        description: Runs scored over the season.
+      - name: runs_allowed
+        description: Runs allowed over the season.
+      - name: run_diff
+        description: Runs scored minus runs allowed.
+      - name: is_shortened_season
+        description: '{{ doc("is_shortened_season") }}'
+      - name: made_playoffs
+        description: True if the team made the postseason (any berth).
+      - name: won_division
+        description: True if the team won its division (with or without a first-round bye).
