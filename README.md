@@ -72,3 +72,5 @@ Data that can be downloaded again isn't stored in the repo. Instead, each source
 - [ ] Publish a first 2027 forecast before Opening Day
 
 The full plan, including goals, data rules, risks and decisions made so far, is in [docs/planning](docs/planning/img/Bucco%20Forecasting%20Season%20Win%20Model%20Plan.md).
+
+A guide to every command-line step is in [docs/cli.md](docs/cli.md).
