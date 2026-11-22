@@ -2,10 +2,12 @@
 
 from bucco.models.base import SeasonForecaster
 from bucco.models.naive import ConstantModel, PersistenceModel
+from bucco.models.smoothing import HoltModel
 
 REGISTRY = {
     "constant": ConstantModel,
     "last_year": PersistenceModel,
+    "holt": HoltModel,
 }
 
-__all__ = ["REGISTRY", "ConstantModel", "PersistenceModel", "SeasonForecaster"]
+__all__ = ["REGISTRY", "ConstantModel", "HoltModel", "PersistenceModel", "SeasonForecaster"]

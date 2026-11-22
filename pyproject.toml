@@ -15,6 +15,7 @@ dependencies = [
     "duckdb>=1.1",
     "dbt-core>=1.9",
     "dbt-duckdb>=1.9",
+    "statsmodels>=0.15.0",
 ]
 
 [project.optional-dependencies]

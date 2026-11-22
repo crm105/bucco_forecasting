@@ -43,7 +43,7 @@ Builds `data/bucco.duckdb` with the `team_seasons`, `team_season_features` and `
 
 ```
 bucco backtest
-bucco backtest --models constant last_year
+bucco backtest --models constant last_year holt
 bucco backtest --first-season 2010
 bucco backtest --include-shortened
 ```
@@ -52,7 +52,7 @@ For each past season from 2001 to 2026, each model is trained on earlier seasons
 
 | Option | Effect |
 | --- | --- |
-| `--models` | Which models to run. Default is all registered models: `constant` and `last_year`. |
+| `--models` | Which models to run. Default is all registered models: `constant`, `last_year` and `holt`. |
 | `--first-season` | Score only seasons from this year on. |
 | `--include-shortened` | Include the 60-game 2020 season in the scores. It is excluded by default. |
 
@@ -68,7 +68,7 @@ Fits the model on every completed season, then predicts the season after the lat
 
 | Option | Effect |
 | --- | --- |
-| `--model` | Required. One of the registered models (`constant`, `last_year`). |
+| `--model` | Required. One of the registered models (`constant`, `last_year`, `holt`). |
 | `--season` | Forecast a specific season. Completed seasons are refused; use `backtest` for those. |
 | `--as-of` | Forecast date to record, `YYYY-MM-DD`. Default is today. A warning is printed if it is after Opening Day. |
 | `--no-save` | Print only; do not store. |

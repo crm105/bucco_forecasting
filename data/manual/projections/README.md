@@ -1,6 +1,6 @@
 # Preseason projections (collected by hand)
 
-Step 2 of the model ladder blends public preseason win projections and betting win totals. No free, reliable historical archive has been confirmed, so these files are collected by hand and kept in git. They can't be downloaded again later.
+Step 3 of the model ladder blends public preseason win projections and betting win totals. No free, reliable historical archive has been confirmed, so these files are collected by hand and kept in git. They can't be downloaded again later.
 
 Put one or more CSV files in this folder, then run `bucco extract projections`. The command checks every file and stops with a list of problems if anything is off. Files starting with `_` are ignored.
 
@@ -38,4 +38,4 @@ None of these has been confirmed to work. Check each site's terms of use before 
 - Sportsbook preseason win total archives
 - Your own notes from past seasons
 
-Keep the search short. If nothing usable turns up, that's a fine answer: skip step 2's backtest for the years without data, and start saving projections every preseason from 2027 on. Past years can't be reproduced later, so each year's snapshot should be saved in the preseason.
+Keep the search short. If nothing usable turns up, that's a fine answer: skip step 3's backtest for the years without data, and start saving projections every preseason from 2027 on. Past years can't be reproduced later, so each year's snapshot should be saved in the preseason.

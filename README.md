@@ -28,14 +28,15 @@ The planned models, roughly in order:
 | --- | --- | --- |
 | 0 | Constant | Every team wins 81 |
 | 1 | Last year | Every team repeats last season's record |
-| 2 | Blend of public forecasts | Weight preseason projections from established forecasters, plus betting win totals if historical data can be found |
-| 3 | FanGraphs team WAR | Turn projected team WAR into wins |
-| 4a | Roster, public player projections | Add up projected WAR for each player on the roster using systems like ZiPS, Steamer and PECOTA |
-| 4b | Roster, own player projections | Same as 4a, but with player projections built here (recent seasons, aging, regression to average) |
-| 5 | Season simulation | Simulate the actual schedule thousands of times to get the win range, division finish and playoff odds |
-| 6 | In-season updates | Adjust the preseason forecast as games are played |
-| 7 | Ensemble | Combine the best models |
-| 8 | What-if scenarios | Estimate how a trade, injury or player slump changes the forecast |
+| 2 | Damped-trend smoothing | Smooth each team's win history into a level and a trend, with settings shared across all teams |
+| 3 | Blend of public forecasts | Weight preseason projections from established forecasters, plus betting win totals if historical data can be found |
+| 4 | FanGraphs team WAR | Turn projected team WAR into wins |
+| 5a | Roster, public player projections | Add up projected WAR for each player on the roster using systems like ZiPS, Steamer and PECOTA |
+| 5b | Roster, own player projections | Same as 5a, but with player projections built here (recent seasons, aging, regression to average) |
+| 6 | Season simulation | Simulate the actual schedule thousands of times to get the win range, division finish and playoff odds |
+| 7 | In-season updates | Adjust the preseason forecast as games are played |
+| 8 | Ensemble | Combine the best models |
+| 9 | What-if scenarios | Estimate how a trade, injury or player slump changes the forecast |
 
 ### What counts as a good forecast
 

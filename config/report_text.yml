@@ -81,3 +81,4 @@ footer: >-
 model_labels:
   constant: "Constant (every team wins 81)"
   last_year: "Last year (every team repeats last season's record)"
+  holt: "Smoothed history (each team's past seasons, weighted toward recent ones)"

@@ -51,16 +51,17 @@ Every model predicts all 30 teams for a target season using only information ava
 | --- | --- | --- | --- |
 | 0 | Constant | Every team wins 81 | The floor |
 | 1 | Persistence | Same record as last season | Why raw records overreact |
-| 2 | Stacked projections model | Collect public preseason win projections from reputable forecasters and fit a stacked model that weights them, including sportsbook preseason win totals where historical data are available | Combining expert forecasts |
-| 3 | FanGraphs WAR forecast | Translate FanGraphs preseason team WAR projections into wins and losses (wins ≈ replacement level + team WAR) | WAR-to-wins conversion |
-| 4a | Roster-based (a): public projections | Take each player's projection from reputable public systems (e.g. ZiPS, Steamer, PECOTA), scored per source, multiply by projected playing time, sum WAR; wins ≈ replacement level + total WAR | Bottom-up forecasting |
-| 4b | Roster-based (b): our own projections | Project each player ourselves (weighted 3-year history, regression, age curve), multiply by projected playing time, sum WAR; wins ≈ replacement level + total WAR | Player projection: aging, regression |
-| 5 | Schedule simulation | Team strengths → game win probability (log5 plus home field) → simulate the real 162-game schedule 10,000+ times | Distributions, playoff odds |
-| 6 | In-season Bayesian update (later phase) | Preseason forecast is the prior; games played are the evidence | Updating beliefs |
-| 7 | Ensemble (optional) | Weighted blend of the best rungs, optionally with market win totals | Combining forecasts |
-| 8 | Season Simulator | Develop capacity to simulate impact of roster moves, injuries, individual performance on predicted season win total | Counterfactuals and sensitivity analysis (comparative statics) |
+| 2 | Damped-trend smoothing (Holt) | Smooth each team's yearly win% into a level and a slope, with the three smoothing parameters fitted jointly and pooled across all 30 teams | Smoothing, trend vs. noise, pooled estimation |
+| 3 | Stacked projections model | Collect public preseason win projections from reputable forecasters and fit a stacked model that weights them, including sportsbook preseason win totals where historical data are available | Combining expert forecasts |
+| 4 | FanGraphs WAR forecast | Translate FanGraphs preseason team WAR projections into wins and losses (wins ≈ replacement level + team WAR) | WAR-to-wins conversion |
+| 5a | Roster-based (a): public projections | Take each player's projection from reputable public systems (e.g. ZiPS, Steamer, PECOTA), scored per source, multiply by projected playing time, sum WAR; wins ≈ replacement level + total WAR | Bottom-up forecasting |
+| 5b | Roster-based (b): our own projections | Project each player ourselves (weighted 3-year history, regression, age curve), multiply by projected playing time, sum WAR; wins ≈ replacement level + total WAR | Player projection: aging, regression |
+| 6 | Schedule simulation | Team strengths → game win probability (log5 plus home field) → simulate the real 162-game schedule 10,000+ times | Distributions, playoff odds |
+| 7 | In-season Bayesian update (later phase) | Preseason forecast is the prior; games played are the evidence | Updating beliefs |
+| 8 | Ensemble (optional) | Weighted blend of the best rungs, optionally with market win totals | Combining forecasts |
+| 9 | Season Simulator | Develop capacity to simulate impact of roster moves, injuries, individual performance on predicted season win total | Counterfactuals and sensitivity analysis (comparative statics) |
 
-Rungs 0–1 need only historical team records; rungs 2, 3 and 4a need archived public forecasts. Rung 4b is the largest data and modeling effort, so it starts only after rungs 0–4a are on the leaderboard.
+Rungs 0–2 need only historical team records; rungs 3, 4 and 5a need archived public forecasts. Rung 5b is the largest data and modeling effort, so it starts only after rungs 0–5a are on the leaderboard.
 
 ### Common interface
 
@@ -79,14 +80,14 @@ class SeasonForecaster(Protocol):
 
 - Predict win percentage, not wins. This handles the 60-game 2020 season and any future shortened season; convert to wins (× 162) only for display.
 - `as_of` makes the forecast date explicit, so the same model can produce a preseason forecast or a mid-season one.
-- A model that has no natural spread (rungs 0–4b) gets one from its backtest residuals.
+- A model that has no natural spread (rungs 0–5b) gets one from its backtest residuals.
 
 ### Backtest
 
 - **Walk-forward by season:** for each target season (2001–2026, using 2000 as the first prior season), fit on earlier seasons only, predict all teams, store results.
 - **Results table:** one row per model, season and team, with predicted mean, spread and actual. The leaderboard is a query on this table.
 - **Pirates view:** a report of Pirates-only errors for interest, never used to choose models.
-- **Hyperparameters** (like the stacking weights in rung 2, or the age curve in rung 4b) are tuned inside each walk-forward step, never on the full history.
+- **Hyperparameters** (like the stacking weights in rung 3, or the age curve in rung 5b) are tuned inside each walk-forward step, never on the full history.
 
 ### Uncertainty
 
@@ -95,38 +96,38 @@ The range comes from two sources, and both must be in the published interval:
 1. **Talent uncertainty:** we don't know exactly how good the team is. This shrinks as the model improves.
 2. **Game-to-game luck:** even a team with known talent varies by about ±6.4 wins over 162 games. This never shrinks.
 
-Rung 5 handles both naturally: draw a talent level for each team, then simulate the schedule.
+Rung 6 handles both naturally: draw a talent level for each team, then simulate the schedule.
 
 ## Data
 
-The core dataset is one row per team per season, and historical team records are enough for rungs 0–1. Public forecasts feed rungs 2–4a, and player-level data comes in at rung 4.
+The core dataset is one row per team per season, and historical team records are enough for rungs 0–2. Public forecasts feed rungs 3–5a, and player-level data comes in at rung 5.
 
 ### Units of analysis
 
 | Table | Grain | Needed from |
 | --- | --- | --- |
 | `team_seasons` | team × season | Rung 0 |
-| `external_forecasts` | source × team × season × publish date (forecasters, sportsbook win totals) | Rung 2 |
-| `team_war_projections` | team × season × as-of date (FanGraphs preseason WAR) | Rung 3 |
-| `player_projections` | source × player × season × as-of date (ZiPS, Steamer, PECOTA) | Rung 4a |
-| `player_seasons` | player × season × team | Rung 4b |
-| `rosters` | player × team × as-of date (projected playing time) | Rung 4a |
-| `schedule` | game | Rung 5 |
-| `games_played` | game, with result | Rung 6 |
-| `scenarios` | scenario × player × team (roster move, injury, performance change) | Rung 8 |
+| `external_forecasts` | source × team × season × publish date (forecasters, sportsbook win totals) | Rung 3 |
+| `team_war_projections` | team × season × as-of date (FanGraphs preseason WAR) | Rung 4 |
+| `player_projections` | source × player × season × as-of date (ZiPS, Steamer, PECOTA) | Rung 5a |
+| `player_seasons` | player × season × team | Rung 5b |
+| `rosters` | player × team × as-of date (projected playing time) | Rung 5a |
+| `schedule` | game | Rung 6 |
+| `games_played` | game, with result | Rung 7 |
+| `scenarios` | scenario × player × team (roster move, injury, performance change) | Rung 9 |
 | `forecasts` / `backtest_results` | model × season × team × as-of date | Rung 0 |
 
 ### Sources
 
 | Source | What it provides | Used by | Notes |
 | --- | --- | --- | --- |
-| Lahman Baseball Database | Team W–L, runs for and against, player batting/pitching/fielding, 1871 to last season | Rungs 0–1, 4b | Free CSVs, updated once a year after the season. The backbone for history. |
-| Retrosheet | Game logs and historical schedules | Rungs 5–6 backtests | Free; requires an attribution notice. |
-| MLB Stats API | Current schedule, standings, rosters, transactions, injured list, live results | Rungs 4a–6 and 8, production | Free and undocumented; already used in this repo. |
-| Public forecasts (e.g. FanGraphs Depth Charts, ZiPS, Steamer, PECOTA) | Preseason team win projections (rung 2), FanGraphs team WAR (rung 3), player projections by source (rung 4a) | Rungs 2, 3, 4a | Backtests need archived preseason editions; check each site's terms. |
-| Baseball-Reference WAR (via `pybaseball`) | Player WAR by season | Rung 4b | Check terms of use and availability before depending on it. |
-| Chadwick Bureau register | Player ID crosswalk across Lahman, Retrosheet, MLB, FanGraphs, B-Ref | Rungs 4a–4b | Free; essential for joining player sources. |
-| Preseason win totals (sportsbooks) | Market expectation per team | Benchmark, rungs 2 and 7 | Historical archives are scattered; rung 2 includes them only if a usable archive is found. |
+| Lahman Baseball Database | Team W–L, runs for and against, player batting/pitching/fielding, 1871 to last season | Rungs 0–2, 5b | Free CSVs, updated once a year after the season. The backbone for history. |
+| Retrosheet | Game logs and historical schedules | Rungs 6–7 backtests | Free; requires an attribution notice. |
+| MLB Stats API | Current schedule, standings, rosters, transactions, injured list, live results | Rungs 5a–7 and 9, production | Free and undocumented; already used in this repo. |
+| Public forecasts (e.g. FanGraphs Depth Charts, ZiPS, Steamer, PECOTA) | Preseason team win projections (rung 3), FanGraphs team WAR (rung 4), player projections by source (rung 5a) | Rungs 3, 4, 5a | Backtests need archived preseason editions; check each site's terms. |
+| Baseball-Reference WAR (via `pybaseball`) | Player WAR by season | Rung 5b | Check terms of use and availability before depending on it. |
+| Chadwick Bureau register | Player ID crosswalk across Lahman, Retrosheet, MLB, FanGraphs, B-Ref | Rungs 5a–5b | Free; essential for joining player sources. |
+| Preseason win totals (sportsbooks) | Market expectation per team | Benchmark, rungs 3 and 8 | Historical archives are scattered; rung 3 includes them only if a usable archive is found. |
 
 ### Rules for using only past data
 
@@ -152,10 +153,10 @@ The data is small (about 3,000 team-seasons and roughly 100,000 player-seasons),
 | Storage | DuckDB file + Parquet for raw extracts | No server to run, fast analytics, easy to version or rebuild | Postgres in Docker: archived in legacy/ for a return of daily game predictions |
 | Transforms | dbt with `dbt-duckdb` | Keeps SQL models, tests and docs; existing dbt skills carry over | SQL files run from Python |
 | Extraction | Python modules, one per source, writing Parquet | Raw data is kept unchanged and can be re-transformed anytime | Direct writes to the database |
-| Modeling | pandas or polars, NumPy, scikit-learn, statsmodels | Rungs 0–4 are lookups, sums and simple regressions; no need for gradient boosting on \~30 rows a season | XGBoost later, if a rung clearly earns it |
-| Bayesian / simulation | NumPy for simulation; conjugate updates or PyMC for rung 6 | Vectorized simulation of 10,000 seasons runs in seconds | Stan |
+| Modeling | pandas or polars, NumPy, scikit-learn, statsmodels | Rungs 0–5 are lookups, sums and simple regressions; no need for gradient boosting on \~30 rows a season | XGBoost later, if a rung clearly earns it |
+| Bayesian / simulation | NumPy for simulation; conjugate updates or PyMC for rung 7 | Vectorized simulation of 10,000 seasons runs in seconds | Stan |
 | Experiment tracking | `backtest_results` table + a leaderboard query | Enough for a solo project; nothing extra to host | MLflow |
-| Orchestration | A command-line tool (`bucco extract`, `bucco backtest`, `bucco forecast`) first; Dagster once rung 6 needs a daily schedule | Preseason forecasting runs a few times a year; daily scheduling only matters in season | GitHub Actions on a schedule |
+| Orchestration | A command-line tool (`bucco extract`, `bucco backtest`, `bucco forecast`) first; Dagster once rung 7 needs a daily schedule | Preseason forecasting runs a few times a year; daily scheduling only matters in season | GitHub Actions on a schedule |
 | Environment | `uv` + `pyproject.toml` | One lockfile, fast installs; replaces the current mix of Pipfile and requirements.txt | Poetry |
 | Quality | `pytest`, `ruff`, pre-commit | Tests that check no future data leaks into a forecast are the most valuable tests in this project | — |
 | Publishing | Quarto blog on GitHub Pages (longer term): a post per forecast update, with what changed | Free, versioned, shareable | Streamlit app |
@@ -234,9 +235,9 @@ The biggest risk is mistaking noise for progress: with a 6.4-win luck floor, a m
 | --- | --- | --- |
 | Noise mistaken for improvement | A worse model gets promoted | Compare models season by season (paired), with bootstrap intervals on the RMSE gap |
 | Future data leaking into forecasts | Backtest looks better than real forecasts will | Filter by as-of date in the backtest; automated leakage tests; Opening Day rosters only |
-| Overfitting the stack | Rung 2 wins the backtest by chance | Few sources, non-negative weights, tuning inside each walk-forward step |
+| Overfitting the stack | Rung 3 wins the backtest by chance | Few sources, non-negative weights, tuning inside each walk-forward step |
 | Fragile sources | Undocumented API changes or blocked scraping break the pipeline | Document each fetch in the source manifest; snapshot only data that can't be fetched again; check each site's terms; prefer Lahman and Retrosheet |
-| Scope creep at rung 4b | Player projections stall the project | Rung 4b starts only after a forecast is live (Phase 5) |
+| Scope creep at rung 5b | Player projections stall the project | Rung 5b starts only after a forecast is live (Phase 5) |
 | Hometown bias | Choices tuned to make the Pirates look good or bad | Pick models on league-wide results only |
 
 ### Open questions
@@ -246,13 +247,13 @@ The biggest risk is mistaking noise for progress: with a 6.4-win luck floor, a m
   Decided: the forecast can be re-run any time before Opening Day, after trades, signings and injury news. It locks on Opening Day, and that locked version is the forecast of record. Backtests score the forecast as of Opening Day; earlier versions are stored by as-of date.
 - [x] Outputs at launch: wins only, or division finish and playoff odds from the first forecast?
 
-  Decided: all three from the first forecast: win distribution, division finish and playoff odds. That means the schedule simulation (rung 5) must be ready for launch.
+  Decided: all three from the first forecast: win distribution, division finish and playoff odds. That means the schedule simulation (rung 6) must be ready for launch.
 - [x] Stack: move to DuckDB and a command-line tool, or keep Postgres, Docker and Dagster?
 
   Decided: move to DuckDB and the command-line tool. The Postgres, Docker and Dagster setup is archived in `legacy/` with notes on how to bring it back, in case daily game predictions return.
 - [x] Market benchmark: is it worth tracking down historical sportsbook win totals?
 
-  Decided: yes, if a usable archive turns up without much effort. Give the search a short timebox. If nothing usable turns up, drop sportsbooks from the rung 2 backtest, and start snapshotting win totals each preseason from 2027 onward.
+  Decided: yes, if a usable archive turns up without much effort. Give the search a short timebox. If nothing usable turns up, drop sportsbooks from the rung 3 backtest, and start snapshotting win totals each preseason from 2027 onward.
 - [x] History window: fit on 1961 onward, or only 1995 onward?
 
   Decided: 2000 onward for now, for both fitting and scoring.
