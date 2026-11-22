@@ -9,6 +9,7 @@ bucco extract all      # 1. download and check raw data
 bucco build            # 2. clean it into tables with dbt
 bucco backtest         # 3. score the models
 bucco leaderboard      # 4. view results
+bucco forecast --model last_year   # 5. forecast the upcoming season
 ```
 
 ## Extract: get raw data
@@ -53,6 +54,25 @@ For each past season from 2001 to 2026, each model is trained on earlier seasons
 | `--models` | Which models to run. Default is all registered models: `constant` and `last_year`. |
 | `--first-season` | Score only seasons from this year on. |
 | `--include-shortened` | Include the 60-game 2020 season in the scores. It is excluded by default. |
+
+## Forecast: predict the upcoming season
+
+```
+bucco forecast --model last_year
+bucco forecast --model last_year --as-of 2027-03-15
+bucco forecast --model last_year --no-save
+```
+
+Fits the model on every completed season, then predicts the season after the latest one (2027 once 2026 is complete). It prints each team's expected wins and an 80% range, best first, with the Pirates marked `*`.
+
+| Option | Effect |
+| --- | --- |
+| `--model` | Required. One of the registered models (`constant`, `last_year`). |
+| `--season` | Forecast a specific season. Completed seasons are refused; use `backtest` for those. |
+| `--as-of` | Forecast date to record, `YYYY-MM-DD`. Default is today. A warning is printed if it is after Opening Day. |
+| `--no-save` | Print only; do not store. |
+
+Forecasts are saved to `forecasts.season_forecasts` in `bucco.duckdb`. Running again with the same model, season and as-of date replaces that row set; a different as-of date is kept as a separate version. The version made on or before Opening Day is the forecast of record.
 
 ## Leaderboard: view saved results
 

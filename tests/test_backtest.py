@@ -112,3 +112,20 @@ def test_shortened_season_excluded_by_default():
     assert metrics.by_model(results).loc["m", "n"] == 1
     assert metrics.by_model(results).loc["m", "rmse"] == 0
     assert metrics.by_model(results, include_shortened=True).loc["m", "n"] == 2
+
+
+def test_forecast_uses_only_completed_seasons_and_targets_next(data):
+    from bucco import forecast
+    team_seasons, features = data
+    SpyModel.calls = []
+    out = forecast.make_forecast(SpyModel, team_seasons, features.assign(team_abbr="X"))
+    season, history_seasons, feature_seasons, _ = SpyModel.calls[0]
+    assert season == 2010 and max(history_seasons) == 2009 and feature_seasons == {2010}
+    assert len(out) == 30 and (out["season"] == 2010).all()
+
+
+def test_forecast_refuses_completed_season(data):
+    from bucco import forecast
+    team_seasons, features = data
+    with pytest.raises(ValueError):
+        forecast.make_forecast(ConstantModel, team_seasons, features, season=2005)

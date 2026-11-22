@@ -6,6 +6,7 @@
     bucco extract all
     bucco build [dbt arguments]      (default: dbt deps, then dbt build)
     bucco backtest [--models constant last_year] [--first-season 2001] [--include-shortened]
+    bucco forecast --model last_year [--season 2027] [--as-of 2027-03-01] [--no-save]
     bucco leaderboard [--pirates] [--first-season 2001] [--include-shortened]
 """
 
@@ -16,9 +17,11 @@ import logging
 import os
 import subprocess
 import sys
+from datetime import date
 
 import pandas as pd
 
+from bucco import forecast
 from bucco.config import DATA_DIR, TRANSFORM_DIR
 from bucco.evaluate import backtest, leaderboard
 from bucco.extract import mlb_api, projections
@@ -59,6 +62,18 @@ def _backtest(args: argparse.Namespace) -> None:
                                     args.include_shortened))
 
 
+def _forecast(args: argparse.Namespace) -> None:
+    """Fit one model on all completed seasons and forecast the upcoming one."""
+    if args.model not in REGISTRY:
+        raise ValueError(f"unknown model {args.model!r}; choose from {sorted(REGISTRY)}")
+    team_seasons, features = backtest.load_inputs()
+    result = forecast.make_forecast(REGISTRY[args.model], team_seasons, features,
+                                    season=args.season, as_of=args.as_of)
+    if not args.no_save:
+        forecast.save_forecast(result)
+    print(forecast.format_forecast(result))
+
+
 def _leaderboard(args: argparse.Namespace) -> None:
     results = backtest.load_results()
     print(leaderboard.leaderboard(results, args.first_season, args.include_shortened))
@@ -92,6 +107,14 @@ def main(argv: list[str] | None = None) -> None:
     bt.add_argument("--include-shortened", action="store_true",
                     help="score the 60-game 2020 season too (left out by default)")
     bt.set_defaults(func=_backtest)
+
+    fc = commands.add_parser("forecast", help="forecast the upcoming season with a model")
+    fc.add_argument("--model", required=True, help=f"one of {sorted(REGISTRY)}")
+    fc.add_argument("--season", type=int, help="default: the season after the latest complete one")
+    fc.add_argument("--as-of", type=date.fromisoformat, metavar="YYYY-MM-DD",
+                    help="forecast date to record (default: today)")
+    fc.add_argument("--no-save", action="store_true", help="print only; do not store")
+    fc.set_defaults(func=_forecast)
 
     board = commands.add_parser("leaderboard", help="show saved backtest results")
     board.add_argument("--pirates", action="store_true", help="also show Pirates errors")
