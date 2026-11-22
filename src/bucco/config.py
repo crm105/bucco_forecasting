@@ -17,6 +17,7 @@ MANUAL_DIR = DATA_DIR / "manual"
 MANIFEST_PATH = DATA_DIR / "manifest.jsonl"
 DUCKDB_PATH = DATA_DIR / "bucco.duckdb"
 
+REPORTS_DIR = REPO_ROOT / "reports"
 TRANSFORM_DIR = REPO_ROOT / "transform"
 TEAMS_SEED = TRANSFORM_DIR / "seeds" / "teams.csv"
 SOURCES_PATH = REPO_ROOT / "config" / "sources.yml"

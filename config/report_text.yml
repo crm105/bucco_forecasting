@@ -1,0 +1,83 @@
+# Written content for the HTML forecast report (`bucco report`).
+#
+# Edit the wording here, then re-run `bucco report` to rebuild the page. Do not edit the
+# generated files in reports/: they are overwritten the next time a report is built.
+#
+# Rules:
+#   - Plain text only. **double asterisks** make bold text. HTML is shown as typed.
+#   - {placeholders} are filled in by the report. Each entry lists the ones it may use in
+#     the comment above it; any other {braces} stop the build with an error naming the entry.
+#   - Numbers come from the data, so keep sentences true for any value (do not write
+#     "a small chance" next to a placeholder that could be 90%).
+
+# Page header. {season}
+kicker: "Bucco Forecasting"
+title: "Pittsburgh Pirates {season} forecast"
+
+badges:
+  record: "Forecast of record"
+  preliminary: "Preliminary: before Opening Day"
+  late: "Made after Opening Day: not the forecast of record"
+
+# Shown after the badge. {as_of}, {opening_day_note}. The note is "Opening Day is DATE." or empty.
+date_line: "Forecast as of {as_of}. {opening_day_note}"
+
+# Headline box. {low}, {high}
+hero_explanation: >-
+  Out of 100 seasons that start like this one, about 80 should end with the Pirates between
+  {low} and {high} wins. The range is wide because baseball is unpredictable: even a perfect
+  model would miss by about 6 wins in a typical season from luck alone.
+fact_above_500: "chance of finishing above .500 (82 or more wins)"
+# {last_wins}, {last_season}
+fact_beat_last: "chance of winning more than the {last_wins} games they won in {last_season}"
+
+what_changed_heading: "What changed"
+# {season}
+what_changed_first: "This is the first saved forecast for {season}."
+# {before}, {now}, {delta}, {before_date}
+what_changed_moved: >-
+  Pirates expected wins moved from {before} to {now} ({delta}) since the forecast as of
+  {before_date}.
+# {before_model}
+what_changed_model: >-
+  The earlier forecast used the {before_model} model, so part of the change is the model.
+what_changed_unchanged: "The model and inputs are unchanged."
+
+timeline_heading: "How the Pirates forecast has moved"
+timeline_intro: "Expected wins by forecast date, with the 80% range shaded."
+
+league_heading: "The whole league"
+league_intro: "Dot: expected wins. Bar: 80% range. Dashed line: 81 wins. Pirates in gold."
+
+trust_heading: "How much to trust this"
+# {model_label}, {first_season}, {last_season}
+trust_intro: >-
+  This forecast comes from the **{model_label}** model. It is a simple baseline, so treat it as
+  a starting point. Each model is tested by forecasting every MLB team's record for every season
+  from {first_season} to {last_season}, using only information from before that season, and the
+  scores below come from that test. The 2020 season (60 games) is left out of the scores.
+table_note: >-
+  Typical miss is the average error. RMSE punishes large misses more. A well-calibrated 80% range
+  should hold about 80% of results.
+
+past_heading: "The Pirates in past seasons"
+past_intro: >-
+  How far this model's Pirates forecast was from their actual wins (2020 scaled to 162 games).
+  Bars above zero mean the model was too high. This is for interest only and is not used to
+  choose models.
+
+unknowns_heading: "What this forecast does not know"
+# {as_of}
+unknowns:
+  - "Trades, signings and injuries that happen after {as_of}."
+  - "Anything about individual players. The current models only use team records."
+
+# {today}, {commit_note}. The note is "Code version ABC." or empty.
+footer: >-
+  Generated {today}. {commit_note} Season data from the MLB Stats API (statsapi.mlb.com), used
+  for personal, non-commercial purposes under MLB's posted terms.
+
+# How each model is named in the trust section. Add an entry when a new model is added.
+model_labels:
+  constant: "Constant (every team wins 81)"
+  last_year: "Last year (every team repeats last season's record)"

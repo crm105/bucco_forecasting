@@ -7,6 +7,7 @@
     bucco build [dbt arguments]      (default: dbt deps, then dbt build)
     bucco backtest [--models constant last_year] [--first-season 2001] [--include-shortened]
     bucco forecast --model last_year [--season 2027] [--as-of 2027-03-01] [--no-save]
+    bucco report [--model last_year] [--season 2027] [--as-of 2027-03-15]
     bucco leaderboard [--pirates] [--first-season 2001] [--include-shortened]
 """
 
@@ -26,6 +27,8 @@ from bucco.config import DATA_DIR, TRANSFORM_DIR
 from bucco.evaluate import backtest, leaderboard
 from bucco.extract import mlb_api, projections
 from bucco.models import REGISTRY
+from bucco.report import data as report_data
+from bucco.report import render
 
 
 def _extract(args: argparse.Namespace) -> None:
@@ -74,6 +77,14 @@ def _forecast(args: argparse.Namespace) -> None:
     print(forecast.format_forecast(result))
 
 
+def _report(args: argparse.Namespace) -> None:
+    """Write an HTML report from saved forecasts and backtest results."""
+    if args.model and args.model not in REGISTRY:
+        raise ValueError(f"unknown model {args.model!r}; choose from {sorted(REGISTRY)}")
+    data = report_data.build_report_data(args.model, args.season, args.as_of)
+    print(f"Wrote {render.write_report(data)}")
+
+
 def _leaderboard(args: argparse.Namespace) -> None:
     results = backtest.load_results()
     print(leaderboard.leaderboard(results, args.first_season, args.include_shortened))
@@ -115,6 +126,13 @@ def main(argv: list[str] | None = None) -> None:
                     help="forecast date to record (default: today)")
     fc.add_argument("--no-save", action="store_true", help="print only; do not store")
     fc.set_defaults(func=_forecast)
+
+    rep = commands.add_parser("report", help="write an HTML forecast report")
+    rep.add_argument("--model", help="default: the best model on the leaderboard")
+    rep.add_argument("--season", type=int, help="default: the upcoming season")
+    rep.add_argument("--as-of", metavar="YYYY-MM-DD",
+                     help="use the saved forecast with this as-of date (default: latest)")
+    rep.set_defaults(func=_report)
 
     board = commands.add_parser("leaderboard", help="show saved backtest results")
     board.add_argument("--pirates", action="store_true", help="also show Pirates errors")

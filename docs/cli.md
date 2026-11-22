@@ -10,6 +10,7 @@ bucco build            # 2. clean it into tables with dbt
 bucco backtest         # 3. score the models
 bucco leaderboard      # 4. view results
 bucco forecast --model last_year   # 5. forecast the upcoming season
+bucco report                       # 6. write the HTML report
 ```
 
 ## Extract: get raw data
@@ -73,6 +74,24 @@ Fits the model on every completed season, then predicts the season after the lat
 | `--no-save` | Print only; do not store. |
 
 Forecasts are saved to `forecasts.season_forecasts` in `bucco.duckdb`. Running again with the same model, season and as-of date replaces that row set; a different as-of date is kept as a separate version. The version made on or before Opening Day is the forecast of record.
+
+## Report: write the HTML forecast report
+
+```
+bucco report
+bucco report --model last_year
+bucco report --as-of 2027-03-15
+```
+
+Builds one self-contained web page from saved results and writes it to `reports/<season>/<model>_<as-of>.html`. Open it in a browser or publish it anywhere that serves static files. It reads only saved forecasts and backtest results, so run `bucco backtest` and `bucco forecast --model <name>` first.
+
+| Option | Effect |
+| --- | --- |
+| `--model` | Default is the best model on the leaderboard (lowest RMSE, 2020 excluded). |
+| `--season` | Default is the upcoming season. |
+| `--as-of` | Use the saved forecast with this as-of date. Default is the latest one. |
+
+The page shows the Pirates headline (expected wins, 80% range, chance of finishing above .500, chance of beating last season), what changed since the previous saved forecast, a timeline of the Pirates forecast when there are two or more as-of dates, a range chart for all 30 teams, and the backtest scores with the Pirates' past errors. A badge marks whether it is the forecast of record (the latest one made on or before Opening Day, once Opening Day has passed), preliminary, or made too late. See [reporting.md](reporting.md) for the design.
 
 ## Leaderboard: view saved results
 
