@@ -22,3 +22,5 @@ legacy/transform_data/src/profiles.yml
 legacy/dagster/
 legacy/logs/
 legacy/transform_data/logs/
+logs/
+transform/.user.yml

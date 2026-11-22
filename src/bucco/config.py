@@ -15,6 +15,7 @@ CACHE_DIR = DATA_DIR / "cache"
 SNAPSHOT_DIR = DATA_DIR / "snapshots"
 MANUAL_DIR = DATA_DIR / "manual"
 MANIFEST_PATH = DATA_DIR / "manifest.jsonl"
+DUCKDB_PATH = DATA_DIR / "bucco.duckdb"
 
 TRANSFORM_DIR = REPO_ROOT / "transform"
 TEAMS_SEED = TRANSFORM_DIR / "seeds" / "teams.csv"
