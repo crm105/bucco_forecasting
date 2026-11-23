@@ -142,5 +142,5 @@ def report_path(data: dict, root: Path = REPORTS_DIR) -> Path:
 def write_report(data: dict, root: Path = REPORTS_DIR) -> Path:
     path = report_path(data, root)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_html(data), encoding="utf-8")
+    path.write_text(render_html(data).rstrip("\n") + "\n", encoding="utf-8")
     return path
