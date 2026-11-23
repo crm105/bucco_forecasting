@@ -40,9 +40,6 @@ OUTPUT_PATH = SNAPSHOT_DIR / "player_projections.parquet"
 MANIFEST_NAME = "_player_downloads.csv"
 PLAYER_TYPES = {"batters": "batter", "pitchers": "pitcher"}
 WAR_RANGE = (-10, 20)
-# File-name spellings that mean the same projection system. "streamer" is a common
-# misspelling of Steamer; the files keep their names and the rows get the right source.
-SOURCE_ALIASES = {"streamer": "steamer"}
 
 # FanGraphs column -> our column, per player type. WAR and the playing-time column are required.
 COMMON = {"Name": "player_name", "Team": "team_abbr", "PlayerId": "fangraphs_id",
@@ -92,7 +89,6 @@ def read_file(path: Path) -> pd.DataFrame:
     """One FanGraphs export, renamed to our columns. Checks that required columns exist."""
     match = PLAYER_FILE_PATTERN.match(path.name)
     source, kind, season = match["source"], PLAYER_TYPES[match["kind"]], int(match["season"])
-    source = SOURCE_ALIASES.get(source, source)
     raw = pd.read_csv(path, encoding="utf-8-sig")  # FanGraphs files start with a BOM
     raw.columns = [c.strip() for c in raw.columns]
     missing = [c for c in REQUIRED[kind] if c not in raw.columns]

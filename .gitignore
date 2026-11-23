@@ -13,7 +13,6 @@ __pycache__/
 # never committed or pushed. The folder README stays tracked.
 data/manual/projections/zips_*.csv
 data/manual/projections/steamer_*.csv
-data/manual/projections/streamer_*.csv
 data/manual/projections/_player_downloads.csv
 data/snapshots/player_projections.parquet
 data/snapshots/preseason_projections.parquet

@@ -48,7 +48,7 @@ Individual player projections (for example ZiPS) downloaded from FanGraphs go in
 <source>_<batters|pitchers>_individual_<season>.csv      e.g. zips_batters_individual_2024.csv
 ```
 
-Then run `bucco extract player-projections` (also part of `bucco extract all`) and `bucco build`. Files named `streamer_...` are read as the source `steamer`. These files are skipped by the team-level checks above and have their own.
+Then run `bucco extract player-projections` (also part of `bucco extract all`) and `bucco build`. These files are skipped by the team-level checks above and have their own.
 
 **Record the download date.** FanGraphs doesn't put it in the file. Add one line per file to [_player_downloads.csv](_player_downloads.csv) (`file, as_of_date, source_url, notes`). A blank date is allowed, but the file can't be checked against Opening Day, and models must not use it. `dbt build` shows a warning (`assert_player_projections_dated`) until every file has a date. If a download was made after Opening Day, the team on each row may be post-trade, so it is a leak risk and is rejected.
 
