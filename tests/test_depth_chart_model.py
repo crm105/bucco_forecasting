@@ -126,3 +126,43 @@ def test_supported_seasons_follow_the_projection_data():
 
 def test_one_win_per_war_constant():
     assert THEORY_SLOPE * GAMES == pytest.approx(1.0)
+
+
+def test_as_given_sums_projected_war_without_reallocating():
+    data = _data()
+    given = PlayerData(data.batters, data.pitchers, data.positions, source="Steamer",
+                       playing_time="as_given")
+    war = given.team_war(2023)
+    # strength 1.5: 9 batters x 3.0 + 5 x 3.0 + 7 x 0.6 pitchers; strength 0.5 is a third of that
+    assert war.loc[1] == pytest.approx(9 * 3.0 + 5 * 3.0 + 7 * 0.6)
+    assert war.loc[2] == pytest.approx(war.loc[1] / 3)
+
+
+def test_as_given_falls_back_to_the_depth_chart_for_a_raw_list(caplog):
+    data = _data()
+    raw = data.batters.copy()
+    raw["pa"] = 2_000.0    # 9 x 2,000 = 18,000 PA per team: every player's own playing time
+    given = PlayerData(raw, data.pitchers, data.positions, source="Steamer",
+                       playing_time="as_given")
+    chart = PlayerData(raw, data.pitchers, data.positions)
+    with caplog.at_level(logging.INFO):
+        bat_given = given.team_war(2023) - given.pitchers.groupby("team_id")["war"].sum()
+    assert "raw list" in caplog.text
+    assert bat_given.loc[1] != pytest.approx(raw.groupby("team_id")["war"].sum().loc[1])
+    assert np.isfinite(chart.team_war(2023)).all()
+
+
+def test_unknown_playing_time_mode_is_an_error():
+    data = _data()
+    with pytest.raises(ValueError, match="playing_time"):
+        PlayerData(data.batters, data.pitchers, data.positions, playing_time="guess")
+
+
+def test_model_name_and_source_appear_in_the_error():
+    data = _data(seasons=(2021, 2022))
+    given = PlayerData(data.batters, data.pitchers, data.positions, source="Steamer",
+                       playing_time="as_given")
+    model = DepthChartModel(given, name="steamer")
+    model.fit(_history())
+    with pytest.raises(ValueError, match="steamer: no Steamer player projections for 2023"):
+        model.predict(2023, date(2023, 3, 30), _features(2023))

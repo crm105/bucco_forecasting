@@ -1,13 +1,23 @@
-"""Rung 5a of the model ladder: ZiPS player projections turned into a team through a depth chart.
+"""Rung 5a of the model ladder: player projections turned into team WAR, then into wins.
 
-Each team's batters and pitchers are run through the depth chart (see depth_chart.py and
-docs/R&D/depth_chart.md), which shares a team's plate appearances and innings among its players
-and adds up WAR. The model then turns team WAR into a win percentage:
+Two ways to get team WAR from one projection system's player files:
+
+* `depth_chart` (used for ZiPS): each team's batters and pitchers are run through the depth
+  chart (see depth_chart.py and docs/R&D/depth_chart.md), which shares a team's plate
+  appearances and innings among its players and adds up WAR. ZiPS projects every player on his
+  own, so its playing time adds up to several teams' worth and must be shared out.
+* `as_given` (used for Steamer): each team's projected WAR is summed as it is. Steamer's
+  playing time is already shared out within each team (about 5,800 PA and 1,500 IP per team), and
+  it beat the depth chart on both PA and wins error. A file that is a raw list of every player
+  instead (Steamer 2013: about 15,800 PA per team) is detected by its team totals and run
+  through the depth chart.
+
+The model then turns team WAR into a win percentage:
 
     mean_win_pct = intercept + slope * (team WAR - that season's league-average team WAR)
 
-Centering on the league average removes the drift in ZiPS's overall WAR level between seasons
-(about 20 per team in 2011-2013, 43 now), which would otherwise swamp the slope. The slope and
+Centering on the league average removes the drift in a system's overall WAR level between
+seasons (for ZiPS, about 20 per team in 2011-2013, 43 now), which would otherwise swamp the slope. The slope and
 intercept are an ordinary least-squares line over earlier seasons only; with fewer than
 MIN_TRAIN_SEASONS earlier seasons of projections the model uses a slope of one win per WAR.
 
@@ -32,6 +42,12 @@ log = logging.getLogger(__name__)
 MIN_TRAIN_SEASONS = 2          # earlier seasons of projections needed to fit the line
 THEORY_SLOPE = 1.0 / GAMES     # win percentage per WAR if the line cannot be fit: 1 win per WAR
 SHORTENED_GAMES = 150          # a team-season with fewer games is left out of the fit (2020)
+PLAYING_TIME = ("depth_chart", "as_given")
+# Median team totals above these mean a file lists every player with his own playing time
+# rather than sharing a team's out (real teams: about 6,200 PA and 1,450 IP). Such a file is
+# run through the depth chart even in `as_given` mode.
+RAW_LIST_PA = 10_000.0
+RAW_LIST_IP = 2_500.0
 
 BATTER_COLUMNS = ["season", "team_id", "mlbam_id", "player_name", "pa", "war", "def_runs", "bsr"]
 PITCHER_COLUMNS = ["season", "team_id", "mlbam_id", "player_name", "ip", "war", "gs"]
@@ -42,10 +58,16 @@ class PlayerData:
 
     batters: BATTER_COLUMNS (+ optional as_of_date); pitchers: PITCHER_COLUMNS (+ as_of_date);
     positions: season, mlbam_id, position, games, as in the player_position_games mart.
+    source: the projection system's name, for messages. playing_time: one of PLAYING_TIME.
     """
 
     def __init__(self, batters: pd.DataFrame, pitchers: pd.DataFrame,
-                 positions: pd.DataFrame) -> None:
+                 positions: pd.DataFrame, source: str = "ZiPS",
+                 playing_time: str = "depth_chart") -> None:
+        if playing_time not in PLAYING_TIME:
+            raise ValueError(f"playing_time must be one of {PLAYING_TIME}, not {playing_time!r}")
+        self.source = source
+        self.playing_time = playing_time
         self.batters = batters.copy()
         self.pitchers = pitchers.copy()
         self.positions = positions
@@ -77,21 +99,40 @@ class PlayerData:
         batters = self._visible(self.batters, season, as_of).dropna(subset=["team_id"]).copy()
         pitchers = self._visible(self.pitchers, season, as_of).dropna(subset=["team_id"])
         if batters.empty or pitchers.empty:
-            raise ValueError(f"no ZiPS player projections for {season}")
-        batters["bsr_pct"] = dc.bsr_percentiles(batters)
-        pool = dc.build_batter_pool(batters, self.positions[self.positions["season"] == season])
-        bat = dc.depth_chart_by_team(pool, group="team_id").groupby("team_id")["scaled_war"].sum()
-        pit = pd.concat([dc.build_pitcher_depth_chart(g) for _, g in pitchers.groupby("team_id")]
-                        ).groupby("team_id")["scaled_war"].sum()
+            raise ValueError(f"no {self.source} player projections for {season}")
+        if self._as_given(batters, "pa", RAW_LIST_PA, season):
+            bat = batters.groupby("team_id")["war"].sum()
+        else:
+            batters["bsr_pct"] = dc.bsr_percentiles(batters)
+            pool = dc.build_batter_pool(batters, self.positions[self.positions["season"] == season])
+            bat = dc.depth_chart_by_team(pool, group="team_id").groupby("team_id")["scaled_war"].sum()
+        if self._as_given(pitchers, "ip", RAW_LIST_IP, season):
+            pit = pitchers.groupby("team_id")["war"].sum()
+        else:
+            pit = pd.concat([dc.build_pitcher_depth_chart(g) for _, g in pitchers.groupby("team_id")]
+                            ).groupby("team_id")["scaled_war"].sum()
         return bat.add(pit, fill_value=0.0)
+
+    def _as_given(self, rows: pd.DataFrame, volume: str, raw_list: float, season: int) -> bool:
+        """Use the projected playing time as it is, unless the file looks like a raw list."""
+        if self.playing_time != "as_given":
+            return False
+        per_team = float(rows.groupby("team_id")[volume].sum().median())
+        if per_team > raw_list:
+            log.info("%s %d: median team %s of %.0f looks like a raw list of every player, so "
+                     "it is run through the depth chart", self.source, season, volume, per_team)
+            return False
+        return True
 
 
 class DepthChartModel:
-    """Rung 5a: ZiPS depth-chart team WAR to win percentage, centered on the league average."""
+    """Rung 5a: projected team WAR to win percentage, centered on the league average."""
 
     name = "depth_chart"
 
-    def __init__(self, data: PlayerData) -> None:
+    def __init__(self, data: PlayerData, name: str | None = None) -> None:
+        if name is not None:
+            self.name = name
         self.data = data
         self.seasons = set(data.seasons)   # seasons this model can predict
         self.intercept = 0.5
@@ -116,7 +157,7 @@ class DepthChartModel:
             if slope > 0:
                 self.slope, self.intercept = float(slope), float(intercept)
                 self.sd = residual_sd(train["win_pct"] - (intercept + slope * train["w"]))
-                log.info("depth_chart: %.2f wins per WAR over %d seasons", slope * GAMES, len(rows))
+                log.info("%s: %.2f wins per WAR over %d seasons", self.name, slope * GAMES, len(rows))
                 return
         self.intercept = float(train["win_pct"].mean()) if len(train) else 0.5
         self.slope = THEORY_SLOPE
@@ -125,7 +166,7 @@ class DepthChartModel:
 
     def predict(self, season: int, as_of: date, features: pd.DataFrame) -> pd.DataFrame:
         if season not in self.seasons:
-            raise ValueError(f"depth_chart: no ZiPS player projections for {season}")
+            raise ValueError(f"{self.name}: no {self.data.source} player projections for {season}")
         war = self.data.team_war(season, as_of)
         centered = war - war.mean()
         mean = features["team_id"].map(self.intercept + self.slope * centered)
