@@ -62,6 +62,20 @@ def run_backtest(
     return pd.concat(frames, ignore_index=True)
 
 
+def supported_seasons(make_model: Callable[[], SeasonForecaster],
+                      team_seasons: pd.DataFrame) -> list[int] | None:
+    """Seasons a model can be scored on, or None for every season.
+
+    A model that only has data for some seasons (such as the depth chart, which needs player
+    projections) says so with a `seasons` attribute.
+    """
+    available = getattr(make_model(), "seasons", None)
+    if available is None:
+        return None
+    first = int(team_seasons["season"].min()) + 1
+    return sorted(s for s in available if s >= first and s in set(team_seasons["season"]))
+
+
 def _as_of(target_features: pd.DataFrame) -> date | None:
     """The forecast date: Opening Day of the target season."""
     opening = target_features["opening_day"].dropna()

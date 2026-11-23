@@ -65,7 +65,9 @@ def _backtest(args: argparse.Namespace) -> None:
     frames = []
     for name in args.models or REGISTRY:
         logging.getLogger(__name__).info("Backtesting %s", name)
-        frames.append(backtest.run_backtest(REGISTRY[name], team_seasons, features))
+        frames.append(backtest.run_backtest(REGISTRY[name], team_seasons, features,
+                                            seasons=backtest.supported_seasons(REGISTRY[name],
+                                                                               team_seasons)))
     results = pd.concat(frames, ignore_index=True)
     backtest.save_results(results)
     print(leaderboard.leaderboard(backtest.load_results(), args.first_season,
