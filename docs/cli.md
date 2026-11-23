@@ -45,7 +45,7 @@ Builds `data/bucco.duckdb` with the `team_seasons`, `team_season_features`, `ext
 
 ```
 bucco backtest
-bucco backtest --models constant last_year holt depth_chart steamer
+bucco backtest --models constant last_year holt depth_chart steamer steamer_optimized
 bucco backtest --first-season 2010
 bucco backtest --include-shortened
 ```
@@ -54,11 +54,11 @@ For each past season from 2001 to 2026, each model is trained on earlier seasons
 
 | Option | Effect |
 | --- | --- |
-| `--models` | Which models to run. Default is all registered models: `constant`, `last_year`, `holt`, `depth_chart` and `steamer`. |
+| `--models` | Which models to run. Default is all registered models: `constant`, `last_year`, `holt`, `depth_chart`, `steamer` and `steamer_optimized`. |
 | `--first-season` | Score only seasons from this year on. |
 | `--include-shortened` | Include the 60-game 2020 season in the scores. It is excluded by default. |
 
-`depth_chart` (rung 5a) needs the player-level ZiPS files, so it is scored only on seasons that have them (2011 on, skipping 2010 and with the 60-game 2020 left out of the scores). `steamer` (rung 5a, Steamer player files summed as given, see [docs/R&D/steamer.md](R&D/steamer.md)) is scored from 2012. To compare them fairly with the other models, use the same first season for all of them: `bucco leaderboard --first-season 2012`.
+`depth_chart` (rung 5a) needs the player-level ZiPS files, so it is scored only on seasons that have them (2011 on, skipping 2010 and with the 60-game 2020 left out of the scores). `steamer` (rung 5a, Steamer player files summed as given, see [docs/R&D/steamer.md](R&D/steamer.md)) and `steamer_optimized` (Steamer batters through the lineup optimizer, see [docs/R&D/lineup_optimizer.md](R&D/lineup_optimizer.md)) are scored from 2012. `steamer_optimized` reads `data/derived/position_switch.csv`, made by `scripts/fit_position_switch.py`. To compare them fairly with the other models, use the same first season for all of them: `bucco leaderboard --first-season 2012`.
 
 ## Forecast: predict the upcoming season
 
@@ -72,7 +72,7 @@ Fits the model on every completed season, then predicts the season after the lat
 
 | Option | Effect |
 | --- | --- |
-| `--model` | Required. One of the registered models (`constant`, `last_year`, `holt`, `depth_chart`, `steamer`). |
+| `--model` | Required. One of the registered models (`constant`, `last_year`, `holt`, `depth_chart`, `steamer`, `steamer_optimized`). |
 | `--season` | Forecast a specific season. Completed seasons are refused; use `backtest` for those. |
 | `--as-of` | Forecast date to record, `YYYY-MM-DD`. Default is today. A warning is printed if it is after Opening Day. |
 | `--no-save` | Print only; do not store. |
