@@ -2,7 +2,9 @@
 
     bucco extract mlb-seasons
     bucco extract mlb-standings [--seasons 2024 2025] [--refresh]
+    bucco extract mlb-positions [--seasons 2024 2025] [--refresh]
     bucco extract projections
+    bucco extract player-projections
     bucco extract all
     bucco build [dbt arguments]      (default: dbt deps, then dbt build)
     bucco backtest [--models constant last_year] [--first-season 2001] [--include-shortened]
@@ -25,7 +27,7 @@ import pandas as pd
 from bucco import forecast
 from bucco.config import DATA_DIR, TRANSFORM_DIR
 from bucco.evaluate import backtest, leaderboard
-from bucco.extract import mlb_api, projections
+from bucco.extract import mlb_api, mlb_positions, player_projections, projections
 from bucco.models import REGISTRY
 from bucco.report import data as report_data
 from bucco.report import render
@@ -37,8 +39,13 @@ def _extract(args: argparse.Namespace) -> None:
     if args.target in ("mlb-standings", "all"):
         mlb_api.extract_standings(
             seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
+    if args.target in ("mlb-positions", "all"):
+        mlb_positions.extract_positions(
+            seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
     if args.target in ("projections", "all"):
         projections.extract_projections()
+    if args.target in ("player-projections", "all"):
+        player_projections.extract_player_projections()
 
 
 def _build(args: argparse.Namespace) -> None:
@@ -104,7 +111,13 @@ def main(argv: list[str] | None = None) -> None:
     standings = targets.add_parser("mlb-standings", help="final standings, one file per season")
     standings.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
     standings.add_argument("--refresh", action="store_true", help="fetch again even if saved")
+    positions = targets.add_parser("mlb-positions",
+                                   help="who played where, one file per season (30 requests each)")
+    positions.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
+    positions.add_argument("--refresh", action="store_true", help="fetch again even if saved")
     targets.add_parser("projections", help="check and save hand-collected projections")
+    targets.add_parser("player-projections",
+                       help="check and save hand-downloaded player projections (ZiPS etc.)")
     targets.add_parser("all", help="all of the above")
     extract.set_defaults(func=_extract)
 

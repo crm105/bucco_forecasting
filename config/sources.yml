@@ -40,6 +40,16 @@ sources:
         note: One request per season. Only completed seasons are fetched.
         output: data/cache/mlb_api/standings/season=<year>.parquet
         feeds: stg_mlb__standings
+      fielding:
+        endpoint: /stats
+        params: {stats: season, group: fielding, playerPool: ALL, sportId: 1, gameType: R}
+        note: >
+          One request per team per season (30 per season), so players traded mid-season keep a
+          row for each team. Rows are per player, team and position, with games, games started
+          and innings. Only completed seasons are fetched. The player_positions model uses
+          the PRIOR season's rows to give each player a listed position.
+        output: data/cache/mlb_api/fielding/season=<year>.parquet
+        feeds: stg_mlb__fielding
 
   manual_projections:
     description: >
@@ -52,3 +62,11 @@ sources:
         input: data/manual/projections/*.csv
         output: data/snapshots/preseason_projections.parquet
         feeds: stg_projections__preseason_wins
+      player_projections:
+        input: data/manual/projections/<source>_<batters|pitchers>_individual_<season>.csv
+        manifest: data/manual/projections/_player_downloads.csv  # download date per file
+        output: data/snapshots/player_projections.parquet
+        note: >
+          Downloaded by hand from FanGraphs (membership). Independent player projections, not
+          rosters: summing WAR by team overcounts playing time. Feeds the roster-based rungs.
+        feeds: stg_projections__player_projections

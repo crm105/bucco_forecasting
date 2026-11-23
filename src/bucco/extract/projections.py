@@ -12,6 +12,7 @@ make a model look better than it is.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import date
 from pathlib import Path
 
@@ -33,6 +34,11 @@ WIN_RANGE = (40, 125)
 SUM_RANGE = (2300, 2550)  # 30 teams x 81 wins is 2,430; betting totals run a bit high
 EXPECTED_TEAMS = 30
 
+# Player-level files, e.g. zips_batters_individual_2024.csv. They have their own reader
+# (extract/player_projections.py) and are skipped here.
+PLAYER_FILE_PATTERN = re.compile(
+    r"^(?P<source>[a-z0-9]+)_(?P<kind>batters|pitchers)_individual_(?P<season>\d{4})\.csv$")
+
 OUTPUT_COLUMNS = ["season", "source", "kind", "as_of_date", "team_id",
                   "projected_wins", "source_url", "notes", "source_file"]
 
@@ -53,8 +59,10 @@ def load_team_lookup(seed: Path = TEAMS_SEED) -> tuple[dict[str, int], set[int]]
 
 
 def read_input_files(directory: Path = INPUT_DIR) -> pd.DataFrame:
-    """Read every CSV in the folder (files starting with _ are ignored)."""
-    files = sorted(p for p in directory.glob("*.csv") if not p.name.startswith("_"))
+    """Read every team-level CSV in the folder (files starting with _ and player files are
+    ignored)."""
+    files = sorted(p for p in directory.glob("*.csv")
+                   if not p.name.startswith("_") and not PLAYER_FILE_PATTERN.match(p.name))
     frames = []
     for path in files:
         frame = pd.read_csv(path, dtype=str, keep_default_na=False)
