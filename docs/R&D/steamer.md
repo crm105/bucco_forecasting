@@ -7,8 +7,8 @@ the leaderboard: 9.58 RMSE over 2012–2026 against 9.78 for `depth_chart` on th
 
 ## The data
 
-The files are named `streamer_<batters|pitchers>_individual_<season>.csv`. The extractor maps
-the `streamer` spelling to the source `steamer`, and the files keep their names. No new dbt
+The files are named `steamer_<batters|pitchers>_individual_<season>.csv`, so the source is
+`steamer`, taken from the file name like any other. No new dbt
 models were needed: `stg_projections__player_projections` and `marts.player_projections` already
 hold any source, keyed by `source`.
 
@@ -114,3 +114,30 @@ Pirates error (predicted minus actual wins), `steamer` vs `depth_chart`: 2022 +5
 2023 −2.7 / −4.5, 2024 −1.9 / +0.7, 2025 +4.6 / +5.9, 2026 −4.7 / −4.0.
 
 To rerun the comparisons: `uv run python scripts/eval_depth_chart.py --source steamer --compare`.
+
+## 2027: first forecast and a Pirates outlook (2026-11-23)
+
+- **File names.** The downloads were renamed from `streamer_*` to `steamer_*`, and the extractor's
+  alias for the misspelling was removed.
+- **A mislabeled download.** The first "2027" files were byte-for-byte copies of the 2013 files
+  (same checksums; 3,430 batters and about 15,800 PA per team, exactly as in 2013). FanGraphs
+  probably served another season under the 2027 name. They were replaced before forecasting. No
+  check catches this yet; a guard that rejects identical files for different seasons would.
+- **Forecast.** `bucco forecast --model steamer` on the November file: Pirates 81.2 wins (80%
+  range 68.9–93.4), 15th in MLB and 2nd in the NL Central. Saved with as-of date 2026-11-23. It
+  should be rerun on a download made just before Opening Day, which becomes the forecast of record.
+- **Outlook report** (`reports/2027/steamer_pirates_outlook_2026-11-23.html`, kept out of git
+  because it shows player-level Steamer figures). Position comparisons went through two versions:
+  1. Grouping batters by their most-played 2026 position and summing Steamer WAR. This mixed
+     playing time with quality: DH time landed in whichever group the DH's main position was in,
+     and teams' groups got different PA.
+  2. Full playing time (used now). Every team fields 640 PA at C and 700 at each other slot, DH
+     included, plus about 800 rotation and 600 bullpen innings, filled by the depth chart from its
+     own Steamer players; time they can't cover goes to replacement level (0 WAR). On this basis
+     the Pirates rank 27th in lineup WAR and 3rd in pitching WAR; their lineup is 4.2 WAR below
+     average, with the largest gaps at 3B, 2B and LF.
+  Building version 2 exposed the DH bug described in [depth_chart.md](depth_chart.md).
+- **Free-agent targets.** Players in the Steamer file with no team are unsigned. They were ranked
+  by WAR per 600 PA (or WAR per IP for pitchers), which is independent of Steamer's playing-time
+  guess for players with no team. Each was compared with the incumbent whose time he would take, over 550 PA or
+  175 IP. No contract, age or injury information is used.
