@@ -40,6 +40,9 @@ OUTPUT_PATH = SNAPSHOT_DIR / "player_projections.parquet"
 MANIFEST_NAME = "_player_downloads.csv"
 PLAYER_TYPES = {"batters": "batter", "pitchers": "pitcher"}
 WAR_RANGE = (-10, 20)
+# File-name spellings that mean the same projection system. "streamer" is a common
+# misspelling of Steamer; the files keep their names and the rows get the right source.
+SOURCE_ALIASES = {"streamer": "steamer"}
 
 # FanGraphs column -> our column, per player type. WAR and the playing-time column are required.
 COMMON = {"Name": "player_name", "Team": "team_abbr", "PlayerId": "fangraphs_id",
@@ -89,6 +92,7 @@ def read_file(path: Path) -> pd.DataFrame:
     """One FanGraphs export, renamed to our columns. Checks that required columns exist."""
     match = PLAYER_FILE_PATTERN.match(path.name)
     source, kind, season = match["source"], PLAYER_TYPES[match["kind"]], int(match["season"])
+    source = SOURCE_ALIASES.get(source, source)
     raw = pd.read_csv(path, encoding="utf-8-sig")  # FanGraphs files start with a BOM
     raw.columns = [c.strip() for c in raw.columns]
     missing = [c for c in REQUIRED[kind] if c not in raw.columns]
@@ -135,7 +139,7 @@ def validate(
             warnings.append(f"{file}: {int(blank.sum())} rows with no team were assigned to "
                             f"{first_abbr[missing[0]]}, the only team missing from the file")
     if no_team.any():
-        names = sorted(df.loc[no_team, "player_name"].astype(str))
+        names = sorted(df.loc[no_team, "player_name"].fillna("(no name)").astype(str))
         shown = names if len(names) <= 10 else names[:10] + [f"... and {len(names) - 10} more"]
         warnings.append(f"dropped {int(no_team.sum())} rows with no team: {shown}")
         df = df.loc[~no_team].copy()
@@ -150,13 +154,16 @@ def validate(
         df[column] = pd.to_numeric(df[column], errors="coerce") if column in df else float("nan")
     for column in ("fangraphs_id", "mlbam_id"):
         df[column] = df[column].astype(str).str.strip()
-    # Rows with no name and no MLB id cannot be matched to anyone (FanGraphs
-    # exports a few of these): drop them and say so.
-    nameless = df["mlbam_id"].fillna("").isin(["", "nan"]) & df["player_name"].isna()
-    if nameless.any():
-        listing = df.loc[nameless, ["source_file", "team_abbr", "war"]].round(2).to_dict("records")
-        warnings.append(f"dropped {int(nameless.sum())} rows with no name or MLB id: {listing}")
-        df = df.loc[~nameless].copy()
+    # Rows with no MLB id cannot be matched to real playing time or positions, which are
+    # keyed on it. FanGraphs exports a few: unnamed ones, and in Steamer the odd minor
+    # leaguer projected for a plate appearance or two. Drop them and say so.
+    no_id = df["mlbam_id"].fillna("").isin(["", "nan"])
+    if no_id.any():
+        listing = (df.loc[no_id, ["source_file", "player_name", "team_abbr", "war"]]
+                   .round(2).to_dict("records"))
+        shown = listing if len(listing) <= 10 else listing[:10] + [f"... {len(listing) - 10} more"]
+        warnings.append(f"dropped {int(no_id.sum())} rows with no MLB id: {shown}")
+        df = df.loc[~no_id].copy()
     if (df["fangraphs_id"].isin(["", "nan"])).any():
         errors.append("some rows have no PlayerId")
     if df["war"].isna().any():

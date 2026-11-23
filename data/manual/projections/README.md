@@ -48,7 +48,7 @@ Individual player projections (for example ZiPS) downloaded from FanGraphs go in
 <source>_<batters|pitchers>_individual_<season>.csv      e.g. zips_batters_individual_2024.csv
 ```
 
-Then run `bucco extract player-projections` (also part of `bucco extract all`) and `bucco build`. These files are skipped by the team-level checks above and have their own.
+Then run `bucco extract player-projections` (also part of `bucco extract all`) and `bucco build`. Files named `streamer_...` are read as the source `steamer`. These files are skipped by the team-level checks above and have their own.
 
 **Record the download date.** FanGraphs doesn't put it in the file. Add one line per file to [_player_downloads.csv](_player_downloads.csv) (`file, as_of_date, source_url, notes`). A blank date is allowed, but the file can't be checked against Opening Day, and models must not use it. `dbt build` shows a warning (`assert_player_projections_dated`) until every file has a date. If a download was made after Opening Day, the team on each row may be post-trade, so it is a leak risk and is rejected.
 
@@ -63,7 +63,9 @@ Checks that stop the extract with an error:
 
 A warning (not an error) appears when a season has batters but no pitchers, or the reverse.
 
-**These are not rosters.** Players are not projected for a full season (in the 2026 batter file the median is about 400 plate appearances, and only 57 of 1,903 players reach 600), but each player's playing time is estimated on its own, not shared out within a team. Each team's rows include depth and minor-league players, so a team's batters add up to roughly 22,000 to 26,000 plate appearances (a real team has about 6,200) and hundreds of players have negative WAR. Adding up `WAR` by team does not give a team forecast. Turning these files into team totals needs playing time allocated per team, which is the job of the roster-based models (rung 5a). The team-level rungs (3 and 4) need a team-level export instead, such as FanGraphs Depth Charts team projections.
+**These are not rosters** (ZiPS; Steamer is different, see below). Players are not projected for a full season (in the 2026 batter file the median is about 400 plate appearances, and only 57 of 1,903 players reach 600), but each player's playing time is estimated on its own, not shared out within a team. Each team's rows include depth and minor-league players, so a team's batters add up to roughly 22,000 to 26,000 plate appearances (a real team has about 6,200) and hundreds of players have negative WAR. Adding up `WAR` by team does not give a team forecast. Turning these files into team totals needs playing time allocated per team, which is the job of the roster-based models (rung 5a). The team-level rungs (3 and 4) need a team-level export instead, such as FanGraphs Depth Charts team projections.
+
+**Steamer is the exception.** From 2014 on its playing time is already shared out within each team (about 5,500 to 6,100 PA and 1,500 IP per team), so the `steamer` model sums its WAR as it is. Steamer 2013 is a raw list of every player and is run through the depth chart instead. See [docs/R&D/steamer.md](../../../docs/R&D/steamer.md).
 
 ## TODO: player positions
 

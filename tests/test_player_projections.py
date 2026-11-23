@@ -149,15 +149,15 @@ def test_a_file_with_no_teams_is_skipped():
     assert any("no team on any row" in w for w in warnings)
 
 
-def test_rows_with_no_name_or_ids_are_dropped():
+def test_rows_with_no_mlb_id_are_dropped():
     import pandas as pd
 
     from bucco.extract import player_projections as pp
-    raw = _frame([("A", "AAA"), (None, "AAA")])
-    raw["fangraphs_id"] = ["1", ""]
-    raw["mlbam_id"] = ["1", ""]
+    raw = _frame([("A", "AAA"), (None, "AAA"), ("C", "AAA")])
+    raw["fangraphs_id"] = ["1", "", "sa3"]
+    raw["mlbam_id"] = ["1", "", None]
     manifest = pd.DataFrame(columns=["file", "as_of_date", "source_url", "notes"])
     clean, errors, warnings = pp.validate(raw, manifest, {"AAA": 1})
     assert len(clean) == 1
     assert not any("PlayerId" in e for e in errors)
-    assert any("no name or MLB id" in w for w in warnings)
+    assert any("no MLB id" in w for w in warnings)
