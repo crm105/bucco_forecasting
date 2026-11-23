@@ -1,8 +1,9 @@
-"""Score the batter depth chart against real playing time and wins, for every ZiPS season on disk.
+"""Score the batter depth chart against real playing time and wins, for every projection season on disk.
 
     uv run python scripts/eval_depth_chart.py                      # the defaults
     uv run python scripts/eval_depth_chart.py def_weight=0.3 rank_decay=0.4   # one setting
     uv run python scripts/eval_depth_chart.py --grid def_weight=1,0.6,0.4     # a sweep
+    uv run python scripts/eval_depth_chart.py --source steamer --compare      # another system
 
 Reports, per setting: player PA error (RMSE of allocated vs real PA, players on rosters with
 projections), average starter PA, average team WAR (batters + pitchers) and leave-one-season-out
@@ -32,10 +33,11 @@ PA_DIR = CACHE_DIR / "mlb_api" / "hitting_pa"
 SHORT_SEASONS = {2020}  # 60 games: real PA and wins are not comparable with a full-season projection
 
 
-def seasons_on_disk(con) -> list[int]:
-    """Seasons that have both batter and pitcher ZiPS rows in the cleaned player_projections mart."""
-    rows = con.sql("select season from marts.player_projections where source = 'zips' "
-                   "group by 1 having count(distinct player_type) = 2 order by 1").fetchall()
+def seasons_on_disk(con, source: str = "zips") -> list[int]:
+    """Seasons with both batter and pitcher rows for `source` in the player_projections mart."""
+    rows = con.execute("select season from marts.player_projections where source = ? "
+                       "group by 1 having count(distinct player_type) = 2 order by 1",
+                       [source]).fetchall()
     return [r[0] for r in rows if r[0] not in SHORT_SEASONS]
 
 
@@ -58,14 +60,15 @@ def real_pa(season: int) -> pd.DataFrame:
     return df
 
 
-def load():
+def load(source: str = "zips"):
     con = duckdb.connect(str(DUCKDB_PATH), read_only=True)
     games = con.sql("select season, mlbam_id, position, games from marts.player_position_games").df()
     wins = con.sql("select season, team_id, wins from marts.team_seasons").df().set_index(
         ["season", "team_id"])["wins"]
-    seasons = [s for s in seasons_on_disk(con) if s in set(games["season"]) and
+    seasons = [s for s in seasons_on_disk(con, source) if s in set(games["season"]) and
                (wins.index.get_level_values(0) == s).any()]
-    projections = con.sql("select * from marts.player_projections where source = 'zips'").df()
+    projections = con.execute("select * from marts.player_projections where source = ?",
+                              [source]).df()
     bat, pit = [], []
     for yr in seasons:
         this = projections[projections["season"] == yr]
@@ -116,13 +119,13 @@ def score(pool, pitcher_war, wins, seasons, **params) -> dict:
 
 
 def compare(pool, pitcher_war, wins, seasons, pitchers) -> pd.DataFrame:
-    """Team WAR -> wins, leave-one-season-out, for simpler ways of turning ZiPS into a team."""
+    """Team WAR -> wins, leave-one-season-out, for simpler ways of turning projections into a team."""
     from bucco.models.playing_time import allocate_by_team
 
     keys = ["season", "team_id"]
     rate = (pool["war"] / pool["pa"]).where(pool["pa"] > 0, 0.0)
     bat = {
-        "ZiPS WAR summed, no allocation": pool.groupby(keys)["war"].sum(),
+        "WAR summed, no allocation": pool.groupby(keys)["war"].sum(),
         "volume-ranked, 6,240 PA budget": allocate_by_team(
             pool, "pa", 6240.0, group="key",
             cap=700, rank_by="volume").groupby(keys)["scaled_war"].sum(),
@@ -130,7 +133,7 @@ def compare(pool, pitcher_war, wins, seasons, pitchers) -> pd.DataFrame:
             pool, "pa", 6240.0, group="key", cap=700, rank_by="rate",
             min_volume=200).groupby(keys)["scaled_war"].sum(),
         "depth chart (ours)": dc.depth_chart_by_team(pool, group="key").groupby(keys)["scaled_war"].sum(),
-        "oracle: ZiPS rates x real PA": (rate * pool["real_pa"]).groupby(
+        "oracle: projected rates x real PA": (rate * pool["real_pa"]).groupby(
             [pool["season"], pool["team_id"]]).sum(),
     }
     pit_raw = pitchers.groupby(keys)["war"].sum()
@@ -139,7 +142,7 @@ def compare(pool, pitcher_war, wins, seasons, pitchers) -> pd.DataFrame:
         for _, g in pitchers.groupby("season")]).groupby(keys)["scaled_war"].sum()
     rows = []
     for name, b in bat.items():
-        p = pit_raw if name.startswith("ZiPS WAR summed") else (
+        p = pit_raw if name.startswith("WAR summed") else (
             pit_vol if "volume" in name else pitcher_war)
         total = (b + p).dropna()
         err, corr = loso_wins_error(total, wins, seasons)
@@ -156,11 +159,12 @@ def parse(values: list[str]) -> dict:
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawTextHelpFormatter)
     ap.add_argument("params", nargs="*", help="name=value overrides of build_batter_depth_chart")
+    ap.add_argument("--source", default="zips", help="projection system, e.g. zips or steamer")
     ap.add_argument("--compare", action="store_true", help="compare with simpler team-WAR rules")
     ap.add_argument("--seasons", help="first-last, e.g. 2022-2026: score only these seasons")
     ap.add_argument("--grid", help="name=v1,v2,... to sweep one parameter")
     args = ap.parse_args(argv)
-    pool, pitcher_war, wins, seasons, pitchers = load()
+    pool, pitcher_war, wins, seasons, pitchers = load(args.source)
     if args.seasons:
         first, last = (int(x) for x in args.seasons.split("-"))
         seasons = [y for y in seasons if first <= y <= last]
@@ -168,7 +172,7 @@ def main(argv: list[str] | None = None) -> None:
         pitchers = pitchers[pitchers["season"].between(first, last)]
         pitcher_war = pitcher_war[pitcher_war.index.get_level_values(0).isin(seasons)]
         wins = wins[wins.index.get_level_values(0).isin(seasons)]
-    print(f"seasons: {seasons}; team-seasons with wins: {len(pitcher_war.index.intersection(wins.index))}")
+    print(f"source: {args.source}; seasons: {seasons}; team-seasons with wins: {len(pitcher_war.index.intersection(wins.index))}")
     if args.compare:
         print(compare(pool, pitcher_war, wins, seasons, pitchers).round(3).to_string(index=False))
         return
