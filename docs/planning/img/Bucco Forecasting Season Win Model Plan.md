@@ -54,7 +54,7 @@ Every model predicts all 30 teams for a target season using only information ava
 | 2 | Damped-trend smoothing (Holt) | Smooth each team's yearly win% into a level and a slope, with the three smoothing parameters fitted jointly and pooled across all 30 teams | Smoothing, trend vs. noise, pooled estimation |
 | 3 | Stacked projections model | Collect public preseason win projections from reputable forecasters and fit a stacked model that weights them, including sportsbook preseason win totals where historical data are available | Combining expert forecasts |
 | 4 | FanGraphs WAR forecast | Translate FanGraphs preseason team WAR projections into wins and losses (wins ≈ replacement level + team WAR) | WAR-to-wins conversion |
-| 5a | Roster-based (a): public projections | Take each player's projection from reputable public systems (e.g. ZiPS, Steamer, PECOTA), scored per source, multiply by projected playing time, sum WAR; wins ≈ replacement level + total WAR | Bottom-up forecasting |
+| 5a | Roster-based (a): public projections (**built as `depth_chart`**: ZiPS players through a depth chart, see [docs/R&D/depth_chart.md](../../R&D/depth_chart.md); backtest RMSE 9.75 wins against 11.04 for Holt over 2011-2026) | Take each player's projection from reputable public systems (e.g. ZiPS, Steamer, PECOTA), scored per source, multiply by projected playing time, sum WAR; wins ≈ replacement level + total WAR | Bottom-up forecasting |
 | 5b | Roster-based (b): our own projections | Project each player ourselves (weighted 3-year history, regression, age curve), multiply by projected playing time, sum WAR; wins ≈ replacement level + total WAR | Player projection: aging, regression |
 | 6 | Schedule simulation | Team strengths → game win probability (log5 plus home field) → simulate the real 162-game schedule 10,000+ times | Distributions, playoff odds |
 | 7 | In-season Bayesian update (later phase) | Preseason forecast is the prior; games played are the evidence | Updating beliefs |
@@ -112,6 +112,7 @@ The core dataset is one row per team per season, and historical team records are
 | `player_projections` | source × player × season × as-of date (ZiPS, Steamer, PECOTA) | Rung 5a |
 | `player_seasons` | player × season × team | Rung 5b |
 | `rosters` | player × team × as-of date (projected playing time) | Rung 5a |
+| `player_positions` | player × season (listed position, determined from the prior season; see the TODO under Open questions) | Rung 5a |
 | `schedule` | game | Rung 6 |
 | `games_played` | game, with result | Rung 7 |
 | `scenarios` | scenario × player × team (roster move, injury, performance change) | Rung 9 |
@@ -227,6 +228,22 @@ The plan puts a simulated 2027 Pirates forecast online before Opening Day, built
 
 Each phase ends with a gate it must pass before the next starts; dates are proposals for a hobby pace, not commitments.
 
+### Roadmap TODOs: model components not yet scheduled
+
+These support the roster-based rungs (5a and 5b). None of them is on the phase chart yet.
+
+- [ ] **TODO: player position model.** Predict the position each player will play in the forecast season, replacing the stopgap that guesses a position from baserunning for players with no prior MLB season. The pipeline today (`player_positions`) only looks at the prior MLB season, which misses about 9% of real hitter PA (rookies, imports from other leagues, players returning from a missed year).
+
+  Scope to flesh out: gather minor league fielding data for players who debut in the forecast season, and fall back to the most recent MLB season when the prior one is missing. Predict a position, or a distribution over positions, for each player, and check it against the positions actually played. Decide which minor-league source to use (MLB Stats API minor-league sport ids are the first thing to test), how to weigh position history against the projection source's listed position, and how to treat utility players who play several positions.
+- [ ] **TODO: innings pitched and general pitcher performance forecast.** Replace the current rule for pitchers (ZiPS projected games started decides starter versus reliever, and ZiPS projected innings are scaled to the team's budget) with a forecast of its own.
+
+  Scope to flesh out: forecast each pitcher's role (starter, reliever, closer), innings and games from past workloads, age, injury history and the team's rotation, with an honest spread. Then forecast performance (run prevention per inning) on top of it, so team pitching WAR is built from forecast innings and a forecast rate, not from ZiPS volume alone. Check against realized innings by role, since ZiPS projects many pitchers for more innings than they pitch.
+- [ ] **TODO: machine-learned playing time (batters and pitchers).** Pair the ZiPS projections with an ML model that predicts how much each player actually plays (PA for batters, IP and starts for pitchers) from ZiPS and easy-to-get metadata, then feed that playing time into the depth chart in place of, or blended with, the hand-set sharing rules.
+
+  Scope to flesh out: the target is real PA, or real IP and games started, from the MLB Stats API (already cached for batters back to 2015 and pitchers from the fielding data). Candidate features are the ZiPS projection (PA or IP, GS, WAR, WAR per PA or IP, Off and Def), age, years of MLB service (from the MLB debut date), prior-season PA or IP and games, whether the position is known or guessed, and team context (how many teammates are projected at the same position, the projected depth chart share). Use a regularized or tree-based model with out-of-fold predictions, and try a hurdle form first (does he play, then how much) because many projected players never play. Also decide how to make a team's predicted PA and IP add up to its budget, for example by rescaling or by feeding the predictions to the depth chart as the weights.
+
+  How to judge it: player PA error (117 on 2022-2026 and 130 over 2011-2026 for the depth chart today) and pitcher IP error (44), and then wins error in the backtest against the `depth_chart` model (9.75 RMSE, 2011-2026). A perfect playing-time forecast would only reach about 8.9, so the realistic gain is a few tenths of a win. Train on earlier seasons only, with 2022 onward held out. Age and service years bring a new data pull (MLB `people` endpoint), and the ZiPS files must be shown to be dated before Opening Day before anything is trained on them. This overlaps with the pitcher forecast TODO above, and it should replace the hand-set pitcher rules if it beats them.
+
 ## Risks and open questions
 
 The biggest risk is mistaking noise for progress: with a 6.4-win luck floor, a model that looks 0.3 wins better may not be better at all.
@@ -263,3 +280,12 @@ The biggest risk is mistaking noise for progress: with a 6.4-win luck floor, a m
 - [x] Publishing: a public static page, or a private table and notebook?
 
   Decided: public, as a blog in the longer term. Each post gives the updated forecast and summarises what changed since the last one, such as roster moves or model changes. The cadence is still open. Until then, the forecast table and notebook stay private.
+- [ ] **TODO: player positions (pipeline built; fallbacks still open).** Done: `bucco extract mlb-positions` pulls games, starts and innings by player, team, position and season from the MLB API (2000 to 2026), and the dbt mart `player_positions` gives each player's position for season S from season S − 1. Stopgap in place: players with no prior-season position get a position guessed from their baserunning (BsR percentile) in the depth chart (`eligible_slots`; outfield and DH if BsR is missing), and games by position are in `player_position_games` for slot eligibility. Still open: a real position model for those players (see the roadmap TODO), and the pitcher gaps. Original plan: The ZiPS player files have no position column, and the playing-time rules need one (catchers are capped at 640 PA, other hitters at 700, and pitchers split into starters and relievers).
+
+  Plan: pull positions from the MLB Stats API (keyed on `MLBAMID`, which is already in the ZiPS files) and build a player × season panel, `player_positions`, in which each player's listed position for season S is determined from season S − 1, so a forecast never uses information from the season being forecast. To settle before building:
+  - What the API offers by season. The current `primaryPosition` field only reflects today, so history likely has to come from season-by-season fielding stats (position with the most games or innings). Check this before relying on it.
+  - How to define the position: most games played at a position in S − 1, with DH as its own value and a rule for players split across positions.
+  - The fallback for players with no MLB season in S − 1 (rookies, international signings): the API's listed position, or a position from the projection source.
+  - Pitchers: starter or reliever from S − 1 games started against games pitched.
+
+  Where it fits: a new MLB API dataset in `config/sources.yml` (cache, can be fetched again), a staging model and the `player_positions` mart in dbt. The proportional fill rule ([docs/R&D/proportional_fill.md](../../R&D/proportional_fill.md)) uses it for the catcher cap and position-based playing-time budgets.
