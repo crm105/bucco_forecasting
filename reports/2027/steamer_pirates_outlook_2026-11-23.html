@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pirates 2027 Steamer Outlook</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: one reading column, figures full column width, tables scroll inside their own box. */
+:root{
+  --bg:#fbfaf7;--fg:#1c1b19;--muted:#6b675f;--line:#e3dfd6;--card:#fff;
+  --accent:#c79a00;--accent-ink:#5c4600;--hl:#fff6d6;
+  --pos:#2a78d6;--neg:#d6453a;--dot:#b9b4a8;--grid:#ece8df;
+  --font-body:system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-data:ui-monospace,"SF Mono",Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#15140f;--fg:#efece4;--muted:#a39e92;--line:#33302a;--card:#1d1c17;
+  --accent:#f1c232;--accent-ink:#f1c232;--hl:#2d2814;
+  --pos:#3987e5;--neg:#e0645a;--dot:#5c584f;--grid:#2a2823;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#15140f;--fg:#efece4;--muted:#a39e92;--line:#33302a;--card:#1d1c17;
+  --accent:#f1c232;--accent-ink:#f1c232;--hl:#2d2814;
+  --pos:#3987e5;--neg:#e0645a;--dot:#5c584f;--grid:#2a2823;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:16px/1.55 var(--font-body)}
+main{max-width:780px;margin:0 auto;padding-block:32px 64px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+h1{font-size:1.75rem;line-height:1.2;margin:0 0 4px;text-wrap:balance}
+h2{font-size:1.2rem;margin:44px 0 8px;text-wrap:balance}
+p{max-width:66ch;margin:0 0 12px}
+.muted{color:var(--muted)}
+.eyebrow{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.hero{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin:20px 0;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px}
+.hero div{min-width:0}
+.big{font-size:2.3rem;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.big small{font-size:1rem;font-weight:500;color:var(--muted)}
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:20px;margin:8px 0}
+.cols>div{min-width:0}
+.cols h3{font-size:1rem;margin:0 0 6px}
+.cols ul{margin:0;padding-left:18px}.cols li{margin:0 0 6px}
+.chip{display:inline-block;font-size:.75rem;padding:1px 8px;border-radius:99px;border:1px solid var(--line);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+figure{margin:16px 0 8px}
+figcaption{font-size:.85rem;color:var(--muted);margin-top:6px;max-width:66ch}
+svg text{fill:var(--fg);font-family:var(--font-body)}
+svg .axis{fill:var(--muted);font-size:11px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:.9rem;font-variant-numeric:tabular-nums}
+th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-weight:600;color:var(--muted);font-size:.8rem}
+tr.pit td{background:var(--hl);font-weight:600}
+.tip{position:fixed;pointer-events:none;background:var(--card);color:var(--fg);border:1px solid var(--line);
+  border-radius:8px;padding:6px 10px;font-size:.85rem;box-shadow:0 4px 14px rgba(0,0,0,.12);z-index:5}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:.85rem;color:var(--muted);margin-top:4px}
+.sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+footer{margin-top:48px;font-size:.85rem;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+</style>
+</head><body>
+
+<main>
+  <div class="eyebrow">Steamer player projections · downloaded 2026-11-23</div>
+  <h1>Pirates 2027: an elite rotation carrying a below-average lineup</h1>
+  <p class="muted">Steamer projects the Pirates' pitching staff as the 5th-best in baseball and its lineup as the 4th-worst. Those two cancel out, which leaves a .500 team.</p>
+
+  <section class="hero" aria-label="Headline numbers">
+    <div><div class="eyebrow">Projected wins</div><div class="big">81.2</div><div class="muted">80% range 68.9 to 93.4</div></div>
+    <div><div class="eyebrow">Team WAR</div><div class="big">35.8 <small>15th</small></div><div class="muted">League average 35.6</div></div>
+    <div><div class="eyebrow">Pitching WAR</div><div class="big">19.1 <small>5th</small></div><div class="muted">League average 14.6</div></div>
+    <div><div class="eyebrow">Batting WAR</div><div class="big">16.6 <small>27th</small></div><div class="muted">League average 21.0</div></div>
+  </section>
+
+  <div class="cols">
+    <div>
+      <h3>Strengths</h3>
+      <ul>
+        <li><b>Starting rotation, 3rd in MLB.</b> 15.1 WAR against an 11.0 average. Skenes (4.7), Ashcraft (3.8) and Jones (3.3) give it three top-tier starters. Starter FIP 3.80 ranks 5th.</li>
+        <li><b>Shortstop.</b> Konnor Griffin is the best projected position player on the team (3.2 WAR, 108 wRC+, +5 fielding runs, +3 on the bases).</li>
+        <li><b>Center field and the bullpen.</b> Cruz's center field ranks 10th and the bullpen 7th. Shortstop (12th) and catcher (17th) are about average.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Weaknesses</h3>
+      <ul>
+        <li><b>Run scoring.</b> Offense ranks 25th, about 33 runs below the average team, or roughly 3 wins.</li>
+        <li><b>Defense at the bat-first spots.</b> Defense ranks 26th. Reynolds (−12.5 runs in left), O'Hearn (−10.9) and Horwitz (−8.8) at first give back most of what their bats add.</li>
+        <li><b>Six of nine lineup spots rank 19th or worse</b> at full playing time: third base 29th, second base 26th, DH 25th, left field 23rd, first base 20th and right field 19th. None of the projected regulars played mostly second base in 2026.</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Positions against the league, at full playing time</h2>
+  <p>To compare like with like, every team fields every position for a full season: 640 PA at catcher and 700 at each other spot, DH included. Pitchers get about 800 rotation innings and 600 bullpen innings. Our depth chart fills each spot from the team's own Steamer players, ranked by their projected rates. Any time a team's own players can't cover goes to a replacement-level player, worth 0 WAR. Each bar is the Pirates' WAR at a spot minus the average team's. Blue is above average, red is below, and the rank out of 30 is on the right.</p>
+  <p>These totals differ slightly from the headline numbers above, which use Steamer's own playing time. On this basis the Pirates' lineup is 15.5 WAR (27th, average 19.7) and their staff 20.0 (3rd, average 15.2).</p>
+  <figure>
+    <svg id="groups" role="img" aria-label="Pirates WAR minus league average by position, full playing time" width="100%"></svg>
+    <div class="legend"><span><span class="sw" style="background:var(--pos)"></span>Above average</span><span><span class="sw" style="background:var(--neg)"></span>Below average</span></div>
+    <figcaption>The DH stands out. Pirates players are projected to fill only 428 of its 700 PA, led by O'Hearn (157), then Griffin and Reynolds on their days off. The rest goes to replacement level, because the Pirates' projected batters don't add up to a full season of plate appearances. WAR at each spot uses that position's adjustment, so a first baseman playing DH is credited as a DH. Players can be listed at more than one spot.</figcaption>
+  </figure>
+  <div class="scroll">
+    <table id="group-table">
+      <thead><tr><th>Spot</th><th>Pirates WAR</th><th>League avg</th><th>Difference</th><th>Rank</th><th>Best team</th><th style="text-align:left">Who plays (PA)</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <h2>Pitching-first, like few other teams</h2>
+  <p>Batting WAR against pitching WAR for all 30 teams, at full playing time. The Pirates and Phillies are the only teams with top-five pitching and bottom-five hitting. The teams at the top right (Dodgers, Mets, Red Sox) are strong at both.</p>
+  <figure>
+    <svg id="scatter" role="img" aria-label="Batting WAR versus pitching WAR, 30 teams" width="100%"></svg>
+    <figcaption>Dashed lines mark the league averages. Hover a dot for the team and its numbers. Brewers (21.1 batting / 19.0 pitching) are the division's other pitching power.</figcaption>
+  </figure>
+
+  <h2>Where the runs come from</h2>
+  <p>Steamer's run components for the Pirates' batters, in runs over a season. Offense and defense are measured against the league average, and defense includes the positional adjustment, so most teams come out negative.</p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Component</th><th>Pirates</th><th>League avg</th><th>Rank</th></tr></thead>
+      <tbody>
+        <tr><td>Offense (batting)</td><td>−8.7</td><td>+24.6</td><td>25th</td></tr>
+        <tr><td>Defense (fielding + position)</td><td>−26.0</td><td>−20.0</td><td>26th</td></tr>
+        <tr><td>Baserunning</td><td>+0.7</td><td>−0.2</td><td>11th</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Projected leaders</h2>
+  <div class="cols">
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Batter</th><th>Pos</th><th>PA</th><th>wRC+</th><th>WAR</th></tr></thead>
+        <tbody>
+          <tr><td>Konnor Griffin</td><td>SS</td><td>552</td><td>108</td><td>3.2</td></tr>
+          <tr><td>Oneil Cruz</td><td>CF</td><td>553</td><td>106</td><td>2.6</td></tr>
+          <tr><td>Nick Gonzales</td><td>3B</td><td>527</td><td>99</td><td>1.6</td></tr>
+          <tr><td>Esmerlyn Valdez</td><td>RF</td><td>442</td><td>114</td><td>1.5</td></tr>
+          <tr><td>Rafael Flores Jr.</td><td>C</td><td>300</td><td>96</td><td>1.3</td></tr>
+          <tr><td>Bryan Reynolds</td><td>LF</td><td>639</td><td>106</td><td>1.3</td></tr>
+          <tr><td>Henry Davis</td><td>C</td><td>248</td><td>89</td><td>1.2</td></tr>
+          <tr><td>Spencer Horwitz</td><td>1B</td><td>409</td><td>111</td><td>0.9</td></tr>
+          <tr><td>Ryan O'Hearn</td><td>1B</td><td>478</td><td>108</td><td>0.8</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Pitcher</th><th>Role</th><th>IP</th><th>FIP</th><th>WAR</th></tr></thead>
+        <tbody>
+          <tr><td>Paul Skenes</td><td>SP</td><td>182</td><td>3.17</td><td>4.7</td></tr>
+          <tr><td>Braxton Ashcraft</td><td>SP</td><td>173</td><td>3.45</td><td>3.8</td></tr>
+          <tr><td>Jared Jones</td><td>SP</td><td>140</td><td>3.44</td><td>3.3</td></tr>
+          <tr><td>Bubba Chandler</td><td>SP</td><td>148</td><td>4.32</td><td>1.8</td></tr>
+          <tr><td>Mitch Keller</td><td>SP</td><td>156</td><td>4.42</td><td>1.5</td></tr>
+          <tr><td>Mason Montgomery</td><td>RP</td><td>68</td><td>2.88</td><td>1.2</td></tr>
+          <tr><td>Yohan Ramírez</td><td>RP</td><td>72</td><td>3.68</td><td>0.7</td></tr>
+          <tr><td>Carmen Mlodzinski</td><td>RP</td><td>75</td><td>4.09</td><td>0.6</td></tr>
+          <tr><td>Luke Weaver</td><td>RP</td><td>64</td><td>3.80</td><td>0.5</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2>NL Central</h2>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Team</th><th>Projected wins</th><th>Batting WAR*</th><th>Pitching WAR*</th></tr></thead>
+      <tbody>
+        <tr><td>Brewers</td><td>87.2</td><td>21.1</td><td>19.0</td></tr>
+        <tr class="pit"><td>Pirates</td><td>81.2</td><td>15.5</td><td>20.0</td></tr>
+        <tr><td>Cubs</td><td>78.9</td><td>21.1</td><td>12.3</td></tr>
+        <tr><td>Cardinals</td><td>78.4</td><td>20.0</td><td>11.4</td></tr>
+        <tr><td>Reds</td><td>70.7</td><td>15.2</td><td>12.1</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted" style="font-size:.85rem;margin-top:6px">* At full playing time, as in the position chart. Projected wins use Steamer's own playing time.</p>
+  <p style="margin-top:12px">Steamer puts the Pirates second in the division, six wins behind Milwaukee. They have the Brewers' pitching but not their lineup.</p>
+
+  <h2>What would move the number</h2>
+  <p>The gap to an above-average team is almost all on the hitting side. At full playing time the lineup is 4.2 WAR below average. The biggest gaps are third base and second base (−0.9 each), left field (−0.8), and DH and first base (−0.6 each). Closing those would add about 4 wins. A regular DH bat matters more than it looks, because Pirates players cover less than half of the DH's playing time.</p>
+  <p>The rotation is the key risk. Skenes, Ashcraft and Jones are 11.8 of the 19.1 pitching WAR. A long absence from any of the three would take most of the staff's edge.</p>
+
+  <h2>Free-agent targets</h2>
+  <p>Players Steamer projects with no team, ranked by WAR per 600 PA, which removes the effect of Steamer guessing playing time for unsigned players. Each target is compared with the Pirates player whose time he would take. Gain is over a full season: 550 PA for a batter, 175 IP for a starter.</p>
+
+  <h3>Second base: the biggest gap</h3>
+  <p>No current Pirate played mostly second base in 2026. The fallback is Jacob Gonzalez, Jared Triolo or Murf Gray, at about 1.5 WAR per 600 PA. Brandon Lowe, the 2026 everyday second baseman, is unsigned, so re-signing him is the simplest fix.</p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Free agent</th><th>2026</th><th>wRC+</th><th>Def</th><th>WAR/600</th><th>Gain</th></tr></thead>
+      <tbody>
+        <tr><td>Jazz Chisholm Jr.</td><td>NYY, 2B</td><td>101</td><td>+2.8</td><td>2.8</td><td>+1.2</td></tr>
+        <tr><td>Luis Arraez</td><td>SF, 2B</td><td>109</td><td>−0.1</td><td>2.7</td><td>+1.1</td></tr>
+        <tr class="pit"><td>Brandon Lowe</td><td>PIT, 2B</td><td>107</td><td>−0.3</td><td>2.5</td><td>+0.9</td></tr>
+        <tr><td>J.P. Crawford</td><td>SEA, SS/3B</td><td>105</td><td>−0.4</td><td>2.3</td><td>+0.7</td></tr>
+        <tr><td>Gleyber Torres</td><td>DET, 2B</td><td>108</td><td>−1.7</td><td>2.2</td><td>+0.6</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>1B, DH and corner outfield</h3>
+  <p>The baseline is Ryan O'Hearn, at about 1.0 WAR per 600 PA: he hits (108 wRC+) but costs 11 runs on defense. A corner outfielder would also let Bryan Reynolds move to DH and take his −12.5 defense off the field.</p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Free agent</th><th>2026</th><th>wRC+</th><th>Def</th><th>WAR/600</th><th>Gain</th></tr></thead>
+      <tbody>
+        <tr><td>Seiya Suzuki</td><td>CHC, RF/DH</td><td>121</td><td>−9.6</td><td>2.4</td><td>+1.3</td></tr>
+        <tr><td>Randy Arozarena</td><td>SEA, LF</td><td>121</td><td>−14.2</td><td>2.1</td><td>+1.0</td></tr>
+        <tr><td>Ian Happ</td><td>CHC, LF</td><td>108</td><td>−8.4</td><td>1.7</td><td>+0.6</td></tr>
+        <tr><td>Joc Pederson</td><td>TEX, DH</td><td>117</td><td>−10.2</td><td>1.5</td><td>+0.5</td></tr>
+        <tr><td>Taylor Ward</td><td>BAL, LF/DH</td><td>107</td><td>−8.2</td><td>1.5</td><td>+0.5</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Third base</h3>
+  <p>A third baseman would let Nick Gonzales move back to second, so the gain comes from the bench player who loses time (about 1.5 WAR per 600). Alec Bohm (PHI, 3B/1B; 107 wRC+, 2.1 WAR per 600) is worth about +0.6. Teruaki Sato, from Japan's NPB league (112 wRC+, 2.3 WAR per 600), projects a little better, but he has no MLB position history, so his projection is less certain.</p>
+
+  <h3>Pitching</h3>
+  <p>Pitching is already a strength, but the weakest rotation spots are Mitch Keller (1.5 WAR in 156 IP) and Bubba Chandler (1.8 in 148 IP).</p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>Free agent</th><th>Role</th><th>IP</th><th>FIP</th><th>WAR</th><th>Gain</th></tr></thead>
+      <tbody>
+        <tr><td>Trevor Rogers</td><td>SP</td><td>175</td><td>3.83</td><td>3.2</td><td>+1.5</td></tr>
+        <tr><td>Kevin Gausman</td><td>SP</td><td>181</td><td>3.96</td><td>2.8</td><td>+1.1</td></tr>
+        <tr><td>Foster Griffin</td><td>SP</td><td>165</td><td>3.87</td><td>2.6</td><td>+0.9</td></tr>
+        <tr><td>Michael King</td><td>SP</td><td>183</td><td>4.11</td><td>2.5</td><td>+0.8</td></tr>
+        <tr><td>Adrian Morejon</td><td>RP</td><td>79</td><td>2.86</td><td>1.4</td><td>+1.0</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted" style="font-size:.85rem;margin-top:6px">Starter gains are over Keller, scaled to 175 IP. Morejon's gain is over a back-end reliever's 0.3 WAR.</p>
+
+  <h3>What to target</h3>
+  <p>A middle infielder (Chisholm, Arraez or Lowe, about +1 win), a corner-outfield bat (Suzuki or Arozarena, +1 to +1.3), and a starter (Rogers, +1.5) add up to roughly 3.5 to 4 WAR. That would take the projection from 81 to the mid-80s, within reach of Milwaukee's 87.</p>
+  <p class="muted">These figures don't include contract costs, ages or injury histories. Gains assume the new player takes all of one incumbent's playing time; in practice some of it would be shared. The list is from the November download, so check that each player is still unsigned.</p>
+
+  <footer>
+    Source: Steamer player projections from FanGraphs, downloaded 2026-11-23; forecast from the bucco-forecasting <code>steamer</code> model (backtest RMSE 9.58 wins, 2012–2026).
+    This is an early-offseason snapshot. Unsigned free agents are not on any team, and Steamer updates playing time through spring training, so expect changes before Opening Day.
+  </footer>
+</main>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+const groups=[
+ {g:"Rotation",pit:15.1,avg:11.0,rank:3,best:17.9,bt:"LAD",who:"Skenes, Ashcraft, Jones, Chandler, Keller"},
+ {g:"Bullpen",pit:4.8,avg:4.1,rank:7,best:6.2,bt:"ATL",who:"Montgomery, Ramírez, Weaver and others"},
+ {g:"C",pit:2.6,avg:2.7,rank:17,best:4.2,bt:"AZ",who:"Flores 281, Davis 196, Rodríguez 111"},
+ {g:"1B",pit:1.3,avg:1.9,rank:20,best:4.5,bt:"ATH",who:"Horwitz 407, O'Hearn 270"},
+ {g:"2B",pit:1.1,avg:2.0,rank:26,best:4.1,bt:"STL",who:"N. Gonzales 142, J. Gonzalez 122, Triolo 116"},
+ {g:"3B",pit:1.5,avg:2.4,rank:29,best:5.7,bt:"TB",who:"N. Gonzales 342, Triolo 126, Yorke 112"},
+ {g:"SS",pit:2.7,avg:2.8,rank:12,best:5.5,bt:"CIN",who:"Griffin 388, J. Gonzalez 170, Gourson 60"},
+ {g:"LF",pit:1.2,avg:2.0,rank:23,best:5.4,bt:"HOU",who:"Reynolds 526, Mangum 146"},
+ {g:"CF",pit:2.7,avg:2.5,rank:10,best:6.4,bt:"CHC",who:"Cruz 550, Garcia 59"},
+ {g:"RF",pit:1.8,avg:2.1,rank:19,best:5.4,bt:"NYY",who:"Valdez 439, Simon 71, Mangum 69"},
+ {g:"DH",pit:0.7,avg:1.3,rank:25,best:4.0,bt:"LAD",who:"O'Hearn 157, Griffin 104, Reynolds 99 (428 of 700)"}];
+const teams=[{"team":"ATH","bat":21.7,"pit":12.8},{"team":"ATL","bat":18.1,"pit":17.8},{"team":"AZ","bat":21.8,"pit":12.3},{"team":"BAL","bat":19.0,"pit":13.1},{"team":"BOS","bat":22.2,"pit":19.7},{"team":"CHC","bat":21.1,"pit":12.3},{"team":"CIN","bat":15.2,"pit":12.1},{"team":"CLE","bat":22.6,"pit":15.3},{"team":"COL","bat":11.8,"pit":9.1},{"team":"CWS","bat":20.7,"pit":13.3},{"team":"DET","bat":22.9,"pit":13.8},{"team":"HOU","bat":23.1,"pit":11.2},{"team":"KC","bat":19.2,"pit":10.6},{"team":"LAA","bat":15.8,"pit":11.4},{"team":"LAD","bat":25.0,"pit":23.9},{"team":"MIA","bat":16.2,"pit":14.9},{"team":"MIL","bat":21.1,"pit":19.0},{"team":"MIN","bat":18.9,"pit":16.7},{"team":"NYM","bat":24.0,"pit":18.8},{"team":"NYY","bat":25.8,"pit":18.1},{"team":"PHI","bat":13.8,"pit":22.4},{"team":"PIT","bat":15.5,"pit":20.0},{"team":"SD","bat":18.7,"pit":10.7},{"team":"SEA","bat":23.1,"pit":17.8},{"team":"SF","bat":17.4,"pit":12.4},{"team":"STL","bat":20.0,"pit":11.4},{"team":"TB","bat":21.3,"pit":16.9},{"team":"TEX","bat":18.3,"pit":15.7},{"team":"TOR","bat":18.7,"pit":16.3},{"team":"WSH","bat":17.3,"pit":15.1}];
+const NS="http://www.w3.org/2000/svg";
+const el=(n,a,p)=>{const e=document.createElementNS(NS,n);for(const k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e};
+const tip=document.getElementById("tip");
+const fmt=v=>(v>0?"+":v<0?"−":"")+Math.abs(v).toFixed(1);
+const ord=n=>n+(["th","st","nd","rd"][(n%100-20)%10]||["th","st","nd","rd"][n%100]||"th");
+function showTip(ev,html){tip.innerHTML=html;tip.hidden=false;
+  const x=Math.min(ev.clientX+12,innerWidth-tip.offsetWidth-8),y=ev.clientY+12;tip.style.left=x+"px";tip.style.top=y+"px"}
+function hideTip(){tip.hidden=true}
+
+// table
+const tb=document.querySelector("#group-table tbody");
+groups.forEach(d=>{const r=tb.insertRow();[d.g,d.pit.toFixed(1),d.avg.toFixed(1),fmt(d.pit-d.avg),ord(d.rank),`${d.best.toFixed(1)} (${d.bt})`,d.who].forEach(v=>r.insertCell().textContent=v);r.lastChild.style.textAlign="left"});
+
+function drawGroups(){
+  const svg=document.getElementById("groups");svg.innerHTML="";
+  const W=svg.clientWidth||700,narrow=W<520,lab=narrow?108:140,right=56,rowH=34,top=8,H=top+groups.length*rowH+28;
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("height",H);
+  const lo=-1,hi=5,x=v=>lab+(v-lo)/(hi-lo)*(W-lab-right);
+  for(let t=lo;t<=hi;t++){el("line",{x1:x(t),x2:x(t),y1:top,y2:H-24,stroke:t===0?"var(--muted)":"var(--grid)","stroke-width":1},svg);
+    const tx=el("text",{x:x(t),y:H-8,"text-anchor":"middle",class:"axis"},svg);tx.textContent=(t>0?"+":"")+t}
+  groups.forEach((d,i)=>{const v=d.pit-d.avg,y=top+i*rowH,h=18,yb=y+(rowH-h)/2;
+    const name=el("text",{x:0,y:y+rowH/2+4,"font-size":13},svg);name.textContent=d.g;
+    const x0=x(0),x1=x(v),w=Math.max(Math.abs(x1-x0),2);
+    const bar=el("rect",{x:Math.min(x0,x1),y:yb,width:w,height:h,rx:3,fill:v>=0?"var(--pos)":"var(--neg)"},svg);
+    const vl=el("text",{x:v>=0?x1+6:x1-6,y:y+rowH/2+4,"text-anchor":v>=0?"start":"end","font-size":12,"font-variant-numeric":"tabular-nums"},svg);
+    vl.textContent=fmt(v);
+    const rk=el("text",{x:W-2,y:y+rowH/2+4,"text-anchor":"end",class:"axis"},svg);rk.textContent=ord(d.rank);
+    const hit=el("rect",{x:0,y:y,width:W,height:rowH,fill:"transparent"},svg);
+    hit.addEventListener("mousemove",ev=>showTip(ev,`<b>${d.g}</b><br>Pirates ${d.pit.toFixed(1)} WAR · avg ${d.avg.toFixed(1)}<br>Rank ${ord(d.rank)} of 30`));
+    hit.addEventListener("mouseleave",hideTip)});
+}
+
+function drawScatter(){
+  const svg=document.getElementById("scatter");svg.innerHTML="";
+  const W=svg.clientWidth||700,H=Math.round(Math.min(440,Math.max(300,W*0.62))),m={l:44,r:14,t:12,b:40};
+  svg.setAttribute("viewBox",`0 0 ${W} ${H}`);svg.setAttribute("height",H);
+  const xs=[10,28],ys=[6,26],x=v=>m.l+(v-xs[0])/(xs[1]-xs[0])*(W-m.l-m.r),y=v=>H-m.b-(v-ys[0])/(ys[1]-ys[0])*(H-m.t-m.b);
+  for(let t=10;t<=28;t+=4){el("line",{x1:x(t),x2:x(t),y1:m.t,y2:H-m.b,stroke:"var(--grid)"},svg);const tx=el("text",{x:x(t),y:H-m.b+16,"text-anchor":"middle",class:"axis"},svg);tx.textContent=t}
+  for(let t=6;t<=26;t+=4){el("line",{x1:m.l,x2:W-m.r,y1:y(t),y2:y(t),stroke:"var(--grid)"},svg);const tx=el("text",{x:m.l-6,y:y(t)+4,"text-anchor":"end",class:"axis"},svg);tx.textContent=t}
+  const ab=teams.reduce((s,d)=>s+d.bat,0)/30,ap=teams.reduce((s,d)=>s+d.pit,0)/30;
+  el("line",{x1:x(ab),x2:x(ab),y1:m.t,y2:H-m.b,stroke:"var(--muted)","stroke-dasharray":"4 4"},svg);
+  el("line",{x1:m.l,x2:W-m.r,y1:y(ap),y2:y(ap),stroke:"var(--muted)","stroke-dasharray":"4 4"},svg);
+  const xl=el("text",{x:(m.l+W-m.r)/2,y:H-6,"text-anchor":"middle",class:"axis"},svg);xl.textContent="Batting WAR →";
+  const yl=el("text",{x:12,y:(m.t+H-m.b)/2,"text-anchor":"middle",class:"axis",transform:`rotate(-90 12 ${(m.t+H-m.b)/2})`},svg);yl.textContent="Pitching WAR →";
+  const order=[...teams].sort((a,b)=>(a.team==="PIT")-(b.team==="PIT"));
+  const labelled={PIT:1,PHI:1,LAD:1,MIL:1,COL:1,NYY:1,CIN:1};
+  order.forEach(d=>{const pit=d.team==="PIT";
+    const c=el("circle",{cx:x(d.bat),cy:y(d.pit),r:pit?8:5,fill:pit?"var(--accent)":"var(--dot)",stroke:"var(--bg)","stroke-width":2},svg);
+    if(labelled[d.team]){const t=el("text",{x:x(d.bat)+(pit?11:8),y:y(d.pit)+4,"font-size":pit?13:11,"font-weight":pit?700:400},svg);t.textContent=d.team}
+    const hit=el("circle",{cx:x(d.bat),cy:y(d.pit),r:12,fill:"transparent"},svg);
+    hit.addEventListener("mousemove",ev=>showTip(ev,`<b>${d.team}</b><br>Batting ${d.bat.toFixed(1)} WAR<br>Pitching ${d.pit.toFixed(1)} WAR`));
+    hit.addEventListener("mouseleave",hideTip)});
+}
+function draw(){drawGroups();drawScatter()}
+draw();let rt;addEventListener("resize",()=>{clearTimeout(rt);rt=setTimeout(draw,120)});
+</script>
+</body></html>

@@ -126,8 +126,8 @@ To rerun the comparisons: `uv run python scripts/eval_depth_chart.py --source st
 - **Forecast.** `bucco forecast --model steamer` on the November file: Pirates 81.2 wins (80%
   range 68.9–93.4), 15th in MLB and 2nd in the NL Central. Saved with as-of date 2026-11-23. It
   should be rerun on a download made just before Opening Day, which becomes the forecast of record.
-- **Outlook report** (`reports/2027/steamer_pirates_outlook_2026-11-23.html`, kept out of git
-  because it shows player-level Steamer figures). Position comparisons went through two versions:
+- **Outlook report** (`reports/2027/steamer_pirates_outlook_2026-11-23.html`). Position
+  comparisons went through two versions:
   1. Grouping batters by their most-played 2026 position and summing Steamer WAR. This mixed
      playing time with quality: DH time landed in whichever group the DH's main position was in,
      and teams' groups got different PA.
