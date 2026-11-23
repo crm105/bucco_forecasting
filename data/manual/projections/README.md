@@ -39,3 +39,32 @@ None of these has been confirmed to work. Check each site's terms of use before 
 - Your own notes from past seasons
 
 Keep the search short. If nothing usable turns up, that's a fine answer: skip step 3's backtest for the years without data, and start saving projections every preseason from 2027 on. Past years can't be reproduced later, so each year's snapshot should be saved in the preseason.
+
+## Player-level projections (FanGraphs downloads)
+
+Individual player projections (for example ZiPS) downloaded from FanGraphs go in this same folder, unchanged, with this file name:
+
+```
+<source>_<batters|pitchers>_individual_<season>.csv      e.g. zips_batters_individual_2024.csv
+```
+
+Then run `bucco extract player-projections` (also part of `bucco extract all`) and `bucco build`. These files are skipped by the team-level checks above and have their own.
+
+**Record the download date.** FanGraphs doesn't put it in the file. Add one line per file to [_player_downloads.csv](_player_downloads.csv) (`file, as_of_date, source_url, notes`). A blank date is allowed, but the file can't be checked against Opening Day, and models must not use it. `dbt build` shows a warning (`assert_player_projections_dated`) until every file has a date. If a download was made after Opening Day, the team on each row may be post-trade, so it is a leak risk and is rejected.
+
+Checks that stop the extract with an error:
+
+- Required columns present (`Name`, `Team`, `PlayerId`, `MLBAMID`, `WAR`, plus `PA` for batters or `IP` for pitchers).
+- Each team abbreviation is recognised (FanGraphs' `KCR`, `SDP`, `SFG`, `TBR`, `WSN`, `CHW` and `ATH`/`OAK` all work).
+- All 30 teams appear in every file.
+- No player appears twice in the same file.
+- WAR is between -10 and 20.
+- The download date is on or before Opening Day.
+
+A warning (not an error) appears when a season has batters but no pitchers, or the reverse.
+
+**These are not rosters.** Players are not projected for a full season (in the 2026 batter file the median is about 400 plate appearances, and only 57 of 1,903 players reach 600), but each player's playing time is estimated on its own, not shared out within a team. Each team's rows include depth and minor-league players, so a team's batters add up to roughly 22,000 to 26,000 plate appearances (a real team has about 6,200) and hundreds of players have negative WAR. Adding up `WAR` by team does not give a team forecast. Turning these files into team totals needs playing time allocated per team, which is the job of the roster-based models (rung 5a). The team-level rungs (3 and 4) need a team-level export instead, such as FanGraphs Depth Charts team projections.
+
+## TODO: player positions
+
+The player files above have no position column. The plan is to get positions from the MLB Stats API, keyed on `MLBAMID`, as a player × season table in which each player's listed position for a season is determined from the **prior** season, so nothing from the forecast year leaks in. Details and open questions are in the TODO under *Open questions* in the [planning doc](../../../docs/planning/img/Bucco%20Forecasting%20Season%20Win%20Model%20Plan.md). Nothing needs to be added to the CSV files for this.
