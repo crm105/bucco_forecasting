@@ -6,8 +6,17 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
+# macOS
+.DS_Store
+
+# Hand-downloaded FanGraphs player projections (membership data) and files built from them:
+# never committed or pushed. The folder README stays tracked.
+data/manual/projections/zips_*.csv
+data/manual/projections/_player_downloads.csv
+data/snapshots/player_projections.parquet
+data/snapshots/preseason_projections.parquet
+
 # New project: data that can be downloaded again, and build output.
-# data/manual/ and data/snapshots/ are NOT ignored: they can't be fetched again.
 data/cache/
 data/*.duckdb
 data/*.duckdb.wal
