@@ -602,7 +602,7 @@ def test_dh_goes_to_a_backup_with_spare_pa_before_replacement_level():
                          _player(3, 500, 1.5 * 500 / 600, {"1B", "DH"}, def_runs=-12.5 * 500 / 700)])
     # Replacement level keeps a hedge share of every slot, so the backup does not get all 500;
     # with the DH discounted he got about 110 PA there and replacement about 230.
-    players, allocations = build_batter_depth_chart(team)
+    _, allocations = build_batter_depth_chart(team)
     dh = allocations[allocations["slot"] == "DH"]
     assert dh.loc[dh["player"] == 3, "pa"].sum() > 160
     assert dh["pa"].sum() > 0.8 * SLOT_PA["DH"]
