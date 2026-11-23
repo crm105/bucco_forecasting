@@ -590,3 +590,19 @@ def test_recommended_defaults_are_locked_in():
     assert (m.OFF_POSITION_MULTIPLIER, m.OFF_POSITION_PENALTY, m.MIN_ELIGIBLE_GAMES) == (0.7, 0.0, 20)
     import inspect
     assert inspect.signature(m.build_batter_depth_chart).parameters["slot_position_credit"].default is True
+
+
+def test_dh_goes_to_a_backup_with_spare_pa_before_replacement_level():
+    # The regulars in left and at first base outrank the backup at DH but are full-time at
+    # their own slots. DH is nobody's home slot, so the backup (500 PA to give) should not be
+    # discounted there and lose the DH to replacement level.
+    # def_runs carry each position's adjustment, as in the projections (LF -7.5, 1B -12.5).
+    team = pd.DataFrame([_player(1, 700, 4.0 * 700 / 600, {"LF", "DH"}, def_runs=-7.5),
+                         _player(2, 700, 3.0 * 700 / 600, {"1B", "DH"}, def_runs=-12.5),
+                         _player(3, 500, 1.5 * 500 / 600, {"1B", "DH"}, def_runs=-12.5 * 500 / 700)])
+    # Replacement level keeps a hedge share of every slot, so the backup does not get all 500;
+    # with the DH discounted he got about 110 PA there and replacement about 230.
+    players, allocations = build_batter_depth_chart(team)
+    dh = allocations[allocations["slot"] == "DH"]
+    assert dh.loc[dh["player"] == 3, "pa"].sum() > 160
+    assert dh["pa"].sum() > 0.8 * SLOT_PA["DH"]

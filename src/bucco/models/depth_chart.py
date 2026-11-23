@@ -302,7 +302,7 @@ def build_batter_depth_chart(
     decay_per_war600: how much faster the weights fall for each 1.0 WAR per 600 PA the next
         player gives up. 0 ignores the gap and uses `rank_decay` alone.
     secondary_weight: weight multiplier at every slot except the player's home slot (the one
-        where he would get the most PA). 1.0 treats every eligible slot the same.
+        where he would get the most PA) and DH. 1.0 treats every eligible slot the same.
     max_slot_share: the most of a slot's PA any one player can receive.
     unknown_can_start: if False, players whose position is a guess (`position_source` is
         "default_outfield" or "imputed_bsr") are ranked below every known player at each slot.
@@ -417,7 +417,10 @@ def build_batter_depth_chart(
     home = first_pass.argmax(axis=0)
     weight_at = []                                  # per slot: weights with the home preference
     for s, (_, players, weights, _, _) in enumerate(plan):
-        mine = np.array([home[i] == s for i in players] + [True])
+        # DH is nobody's home slot, so nobody is discounted there. Discounting every real
+        # player but not replacement level handed most of the DH to replacement.
+        at_dh = plan[s][0] == "DH"
+        mine = np.array([at_dh or home[i] == s for i in players] + [True])
         weight_at.append(weights * np.where(mine, 1.0, secondary_weight))
 
     # Share every slot's PA, then pull back players who are over their own total limit. Only

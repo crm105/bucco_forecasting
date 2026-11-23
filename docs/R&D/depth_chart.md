@@ -498,3 +498,21 @@ seasons only):
 
 Pirates error (predicted minus actual wins): 2022 +6.0, 2023 -4.5, 2024 +0.7, 2025 +5.9,
 2026 -4.0. The 2027 forecast needs the 2027 ZiPS files, which are not out yet.
+
+## Fix: DH no longer discounted as a secondary slot (2026-11-23)
+
+`secondary_weight` (0.25) multiplies a player's weight at every slot except his home slot. DH is
+almost never anyone's home slot, so every real DH candidate was cut to a quarter, while the
+replacement-level entry (always treated as "home") kept its full weight. On top of that, regulars
+who outrank the bench at DH are capped by their own PA and scaled down there. Together these handed
+most of the DH to replacement level even when bench players had PA to spare. Example: Steamer 2027
+Pirates, where the DH got 334 of 700 PA while a bench first baseman left about 90 of his projected
+PA unused.
+
+DH is now exempt from the discount. The Pirates' DH gets 428 PA and that player uses all his
+projected PA; the remaining shortfall is real, because the team's projected batters add up to about
+6,000 PA against a 6,240 budget. Across all teams the change is neutral: holdout PA error
+117.4 → 117.6 (ZiPS) and 79.0 → 78.9 (Steamer), wins error within 0.01, and the backtest RMSEs
+are unchanged (depth_chart 9.75, steamer 9.58). Also tried: giving replacement level the same
+discount everywhere. It helped Steamer's PA error (79.0 → 78.5) but hurt ZiPS's (117.4 → 117.7) and
+was not adopted.
