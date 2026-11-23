@@ -1,11 +1,14 @@
 """Rung 5a of the model ladder: player projections turned into team WAR, then into wins.
 
-Two ways to get team WAR from one projection system's player files:
+Three ways to get team WAR from one projection system's player files:
 
 * `depth_chart` (used for ZiPS): each team's batters and pitchers are run through the depth
   chart (see depth_chart.py and docs/R&D/depth_chart.md), which shares a team's plate
   appearances and innings among its players and adds up WAR. ZiPS projects every player on his
   own, so its playing time adds up to several teams' worth and must be shared out.
+* `optimized` (used for Steamer, `steamer_optimized`): batters' plate appearances are shared
+  out by the lineup optimizer (lineup_optimizer.py: the same PA at every position for every team,
+  fatigue, fitted position-switch costs); pitchers are taken as given, as in `as_given`.
 * `as_given` (used for Steamer): each team's projected WAR is summed as it is. Steamer's
   playing time is already shared out within each team (about 5,800 PA and 1,500 IP per team), and
   it beat the depth chart on both PA and wins error. A file that is a raw list of every player
@@ -42,7 +45,7 @@ log = logging.getLogger(__name__)
 MIN_TRAIN_SEASONS = 2          # earlier seasons of projections needed to fit the line
 THEORY_SLOPE = 1.0 / GAMES     # win percentage per WAR if the line cannot be fit: 1 win per WAR
 SHORTENED_GAMES = 150          # a team-season with fewer games is left out of the fit (2020)
-PLAYING_TIME = ("depth_chart", "as_given")
+PLAYING_TIME = ("depth_chart", "as_given", "optimized")
 # Median team totals above these mean a file lists every player with his own playing time
 # rather than sharing a team's out (real teams: about 6,200 PA and 1,450 IP). Such a file is
 # run through the depth chart even in `as_given` mode.
@@ -100,7 +103,9 @@ class PlayerData:
         pitchers = self._visible(self.pitchers, season, as_of).dropna(subset=["team_id"])
         if batters.empty or pitchers.empty:
             raise ValueError(f"no {self.source} player projections for {season}")
-        if self._as_given(batters, "pa", RAW_LIST_PA, season):
+        if self.playing_time == "optimized":
+            bat = self._optimized_batting(batters, season)
+        elif self._as_given(batters, "pa", RAW_LIST_PA, season):
             bat = batters.groupby("team_id")["war"].sum()
         else:
             batters["bsr_pct"] = dc.bsr_percentiles(batters)
@@ -113,9 +118,21 @@ class PlayerData:
                             ).groupby("team_id")["scaled_war"].sum()
         return bat.add(pit, fill_value=0.0)
 
+    def _optimized_batting(self, batters: pd.DataFrame, season: int) -> pd.Series:
+        """Batting WAR per team with plate appearances shared out by the lineup optimizer
+        (needs off_runs, def_runs and fld_runs in the batter rows)."""
+        from bucco.models.lineup_optimizer import optimize_league
+
+        rows = batters.rename(columns={"pa": "plate_appearances"})
+        if "fld_runs" not in rows:
+            rows["fld_runs"] = np.nan
+        allocations, _ = optimize_league(rows, self.positions[self.positions["season"] == season])
+        return allocations.groupby("team_id")["war"].sum()
+
     def _as_given(self, rows: pd.DataFrame, volume: str, raw_list: float, season: int) -> bool:
-        """Use the projected playing time as it is, unless the file looks like a raw list."""
-        if self.playing_time != "as_given":
+        """Use the projected playing time as it is, unless the file looks like a raw list.
+        Pitchers in `optimized` mode are taken as given too."""
+        if self.playing_time not in ("as_given", "optimized"):
             return False
         per_team = float(rows.groupby("team_id")[volume].sum().median())
         if per_team > raw_list:

@@ -3,7 +3,11 @@
 from bucco.models.base import SeasonForecaster
 from bucco.models.depth_chart_model import DepthChartModel, PlayerData
 from bucco.models.naive import ConstantModel, PersistenceModel
-from bucco.models.player_inputs import make_depth_chart_model, make_steamer_model
+from bucco.models.player_inputs import (
+    make_depth_chart_model,
+    make_steamer_model,
+    make_steamer_optimized_model,
+)
 from bucco.models.smoothing import HoltModel
 
 REGISTRY = {
@@ -12,8 +16,9 @@ REGISTRY = {
     "holt": HoltModel,
     "depth_chart": make_depth_chart_model,
     "steamer": make_steamer_model,
+    "steamer_optimized": make_steamer_optimized_model,
 }
 
 __all__ = ["REGISTRY", "ConstantModel", "DepthChartModel", "HoltModel", "PersistenceModel",
            "PlayerData", "SeasonForecaster", "make_depth_chart_model",
-           "make_steamer_model"]
+           "make_steamer_model", "make_steamer_optimized_model"]

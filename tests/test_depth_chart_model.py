@@ -166,3 +166,20 @@ def test_model_name_and_source_appear_in_the_error():
     model.fit(_history())
     with pytest.raises(ValueError, match="steamer: no Steamer player projections for 2023"):
         model.predict(2023, date(2023, 3, 30), _features(2023))
+
+
+def test_optimized_mode_fills_every_position_and_ranks_the_stronger_roster_higher():
+    data = _data()
+    bat = data.batters.copy()
+    bat["off_runs"] = bat["war"] * 10 - 20 * bat["pa"] / 600       # WAR back to batting runs
+    bat["def_runs"] = 0.0
+    bat["fld_runs"] = np.nan
+    # natural positions from last season's games
+    games = pd.concat([data.positions, data.positions.assign(season=data.positions["season"] + 1)])
+    optimized = PlayerData(bat, data.pitchers, games, source="Steamer", playing_time="optimized")
+    war = optimized.team_war(2023)
+    assert war.loc[1] > war.loc[2]
+    model = DepthChartModel(optimized, name="steamer_optimized")
+    model.fit(_history())
+    out = model.predict(2023, date(2023, 3, 30), _features(2023)).set_index("team_id")
+    assert out.loc[1, "mean_win_pct"] > out.loc[2, "mean_win_pct"]

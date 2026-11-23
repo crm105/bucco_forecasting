@@ -18,10 +18,13 @@ SOURCES = {"zips": ("ZiPS", "depth_chart"), "steamer": ("Steamer", "as_given")}
 
 
 @lru_cache(maxsize=4)
-def load_player_data(source: str = "zips", path=DUCKDB_PATH) -> PlayerData:
+def load_player_data(source: str = "zips", path=DUCKDB_PATH,
+                     playing_time: str | None = None) -> PlayerData:
+    """One source's player projections; `playing_time` overrides the source's default."""
     if not path.exists():
         raise RuntimeError(f"{path} not found. Run `bucco extract all` and `bucco build` first.")
-    label, playing_time = SOURCES[source]
+    label, default = SOURCES[source]
+    playing_time = playing_time or default
     with duckdb.connect(str(path), read_only=True) as con:
         proj = con.execute("select * from marts.player_projections where source = ? "
                            "and team_id is not null and mlbam_id is not null", [source]).df()
@@ -42,3 +45,9 @@ def make_depth_chart_model() -> DepthChartModel:
 def make_steamer_model() -> DepthChartModel:
     """Factory for the registry: Steamer's own playing time, team WAR summed as given."""
     return DepthChartModel(load_player_data("steamer"), name="steamer")
+
+
+def make_steamer_optimized_model() -> DepthChartModel:
+    """Factory for the registry: Steamer batters through the lineup optimizer, pitchers as given."""
+    return DepthChartModel(load_player_data("steamer", playing_time="optimized"),
+                           name="steamer_optimized")
