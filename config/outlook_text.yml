@@ -1,0 +1,153 @@
+# Written content for the team outlook page (`bucco outlook`).
+#
+# Edit the wording here, then re-run `bucco outlook` to rebuild the page. Do not edit the
+# generated files in reports/: they are overwritten the next time the outlook is built.
+#
+# Rules:
+#   - Plain text only. **double asterisks** make bold text. HTML is shown as typed.
+#   - {placeholders} are filled in from the data. The comment above each entry lists the ones it
+#     may use; any other {braces} stop the build with an error naming the entry.
+#   - Numbers come from the data, so keep sentences true for any value.
+
+kicker: "Bucco Forecasting · team outlook"
+# {team_name}, {season}
+title: "{team_name} {season} outlook"
+# {as_of}, {source_label}
+date_line: "{source_label} player projections · forecast as of {as_of}"
+
+# The headline is picked from the team's profile: a side counts as strong if it ranks in the
+# top 10 and weak if it ranks 21st or worse.
+headlines:
+  pitching_led: "A strong pitching staff carrying a below-average lineup"
+  batting_led: "A strong lineup carrying a below-average pitching staff"
+  both_strong: "Strong on both sides"
+  both_weak: "Below average on both sides"
+  balanced: "No side clearly ahead of the other"
+
+# {team_short}, {pitching_rank}, {batting_rank}, {wins}, {win_rank}
+intro: >-
+  With every team's plate appearances shared out by our lineup optimizer, the projections put
+  the {team_short}' pitching staff {pitching_rank} in baseball and their lineup {batting_rank}.
+  Together that comes to {wins} wins, {win_rank} in MLB.
+
+hero_wins: "Projected wins"
+# {low}, {high}
+hero_range: "80% range {low} to {high}"
+hero_team_war: "Team WAR"
+hero_pitching: "Pitching WAR"
+hero_batting: "Batting WAR"
+# {avg}
+hero_avg: "League average {avg}"
+
+strengths_heading: "Strengths"
+weaknesses_heading: "Weaknesses"
+# {spot}, {rank}, {war}, {avg}, {who}
+strength_item: "**{spot}, {rank} in MLB.** {war} WAR (league average {avg}). {who}"
+# {spot}, {rank}, {war}, {avg}, {who}
+weakness_item: "**{spot}, {rank} in MLB.** {war} WAR (league average {avg}). {who}"
+no_strengths: "No spot ranks in the top 10."
+no_weaknesses: "No spot ranks 21st or worse."
+# {rank}, {runs}, {wins}
+run_scoring_item: >-
+  **Run scoring.** Batting ranks {rank}, {runs} runs below the average team's lineup, or about
+  {wins} wins.
+# {rank}
+defense_item: "**Defense.** Fielding plus positional adjustment ranks {rank}."
+
+positions_heading: "Positions against the league"
+positions_intro: >-
+  Every team fields every position for a full season: 640 PA at catcher and 700 at each other
+  spot, DH included. Our lineup optimizer decides who plays where on each team to get the most
+  batting WAR. It allows for fatigue (hitters do a little worse the more they play) and for how a
+  fielder's defense changes when he moves position, measured from Statcast. Time no rostered
+  player fills better than a replacement-level player goes to one, at 0 WAR. Pitching is the
+  projection as given; the rotation is pitchers who start at least half their games.
+positions_chart_note: >-
+  Each bar is the team's WAR at a spot minus the average team's. Green is above average, red is
+  below, and the rank out of 30 is on the right.
+positions_caption: >-
+  WAR at a spot includes the hitting of whoever plays there, with that position's adjustment, so
+  a first baseman playing DH is credited as a DH. Players can appear at more than one spot.
+
+scatter_heading: "Batting against pitching"
+# {team}
+scatter_intro: >-
+  Batting WAR (optimized lineups) against pitching WAR for all 30 teams, {team} in gold. Dashed
+  lines mark the league averages.
+
+runs_heading: "Where the runs come from"
+runs_intro: >-
+  Run components for the batters in the optimized lineup, in runs over a season. Batting is
+  measured against the average MLB hitter; the average team's lineup is well above that, because
+  each team plays its best hitters most. Defense includes the positional adjustment, so most
+  teams come out negative.
+
+leaders_heading: "Projected leaders"
+leaders_note: >-
+  Batters: PA, main position and WAR from the optimized lineup (wRC+ is the projection's rate).
+  Pitchers: the projection, which the forecast uses as is.
+
+# {division}
+division_heading: "{division}"
+division_note: "Batting from the optimized lineups, pitching as projected: the forecast's inputs."
+# {team_short}, {place}, {leader}, {gap} (gap includes the unit, e.g. "8 wins")
+division_behind: "The forecast puts the {team_short} {place} in the division, {gap} behind the {leader}."
+# {team_short}, {gap} (gap includes the unit, e.g. "3 wins")
+division_ahead: "The forecast puts the {team_short} first in the division, {gap} ahead of the next team."
+
+move_heading: "What would move the number"
+# {gap}, {gaps}
+move_lineup_below: >-
+  The lineup is {gap} WAR below the league average. The biggest gaps are {gaps}.
+# {gap}
+move_lineup_above: "The lineup is {gap} WAR above the league average."
+# {names}, {share}, {total}
+move_rotation: >-
+  The rotation is concentrated: {names} make up {share} of the {total} pitching WAR, so a long
+  absence from any of them would cost a large part of the staff's value.
+
+fa_heading: "Free-agent targets"
+fa_intro: >-
+  Players the projection lists with no team are unsigned. To value each one, we add him to the
+  roster and re-run the lineup optimizer. The gain is the change in team batting WAR, with
+  everyone else's playing time and positions re-shuffled to fit him in, so it already counts
+  the player who loses time.
+# {names}
+fa_off_position: >-
+  Marked *: the optimizer would put {names} mostly at a position they did not play last season.
+  Statcast's fielding measure ignores outfield arms and rates some moves (such as outfield to
+  third base) as easier than they are, so read these as the value of the bat.
+# {first}, {second}, {gain}, {separate}
+fa_pair: >-
+  Signing {first} and {second} together adds {gain} WAR ({separate} if their gains simply added
+  up).
+# {weakest}, {war}, {ip}
+fa_pitching_intro: >-
+  Starters are compared with the weakest starter, {weakest} ({war} WAR in {ip} IP), per 175
+  innings; the reliever with the bullpen's weakest regular, at his own innings.
+fa_caveat: >-
+  Highlighted rows played for the team last season (re-signing them is the simplest move). None of this includes contract cost, age or injury history. The list is from the projection
+  file, so check that each player is still unsigned.
+
+# {model}, {rmse}, {first}, {last}, {rmse_recent}, {recent_first}, {today}
+footer: >-
+  Forecast from the {model} model: backtest RMSE {rmse} wins over {first}–{last} and
+  {rmse_recent} over {recent_first}–{last} (2020 left out). Built {today}. An early snapshot
+  can change as projections update and rosters fill.
+
+spot_labels:
+  Rotation: "Starting rotation"
+  Bullpen: "Bullpen"
+  C: "Catcher"
+  1B: "First base"
+  2B: "Second base"
+  3B: "Third base"
+  SS: "Shortstop"
+  LF: "Left field"
+  CF: "Center field"
+  RF: "Right field"
+  DH: "Designated hitter"
+
+source_labels:
+  steamer: "Steamer"
+  zips: "ZiPS"
