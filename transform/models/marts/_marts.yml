@@ -166,3 +166,131 @@ models:
         description: Where the numbers came from, if recorded.
       - name: notes
         description: Free-text notes from the input file.
+
+  - name: player_projections
+    description: >
+      Hand-downloaded player projections with the current team abbreviation and Opening Day
+      attached. One row per player per source, player type and season. These are independent
+      player projections, not rosters: do not sum `war` by team and treat it as a team forecast
+      (each player has his own playing-time estimate, not one allocated within a team). Allocating playing time
+      is the job of the roster-based models (rung 5a). `as_of_date` is null until the download
+      date is entered in `_player_downloads.csv`; models must not use undated rows.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, source, player_type, fangraphs_id]
+    columns:
+      - name: season
+        description: Season being projected.
+        data_tests: [not_null]
+      - name: source
+        description: Lowercase projection system, e.g. `zips`.
+      - name: player_type
+        description: "`batter` or `pitcher`."
+      - name: as_of_date
+        description: '{{ doc("as_of_date") }}'
+      - name: opening_day
+        description: Opening Day of the projected season. Null if the calendar has no entry.
+      - name: days_before_opening_day
+        description: >
+          Days between the download date and Opening Day. Never negative (see
+          assert_player_projections_published_before_opening_day). Null if the date is unknown.
+      - name: fangraphs_id
+        description: FanGraphs `PlayerId`, kept as text.
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id, the key that matches MLB data.
+      - name: player_name
+        description: Player name as FanGraphs wrote it.
+      - name: team_id
+        description: '{{ doc("team_id") }}'
+        data_tests: [not_null]
+      - name: team_abbr
+        description: Current team abbreviation, e.g. `PIT`.
+      - name: source_team_abbr
+        description: Abbreviation exactly as FanGraphs wrote it (e.g. `KCR`).
+      - name: war
+        description: Projected WAR for the projected playing time.
+      - name: plate_appearances
+        description: Projected plate appearances. Null for pitchers.
+      - name: innings_pitched
+        description: Projected innings pitched. Null for batters.
+
+  - name: player_positions
+    description: >
+      Each player's listed position for a season, determined from the PRIOR season. A row for
+      season S describes where the player played in S - 1, so it can be used to forecast S
+      without peeking at S. One row per player who played in the majors in S - 1; a player
+      with no row (a rookie or minor leaguer) has no prior-season position yet. The newest rows
+      are for the season after the latest completed one, which is the season being forecast.
+      Feeds the depth chart logic (catcher and designated-hitter slots, starters and
+      relievers). See `int__player_season_positions` for how positions are chosen.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id]
+    columns:
+      - name: season
+        description: Season being forecast. The position comes from the season before it.
+        data_tests: [not_null]
+      - name: prior_season
+        description: The season the position was taken from. Always `season - 1`.
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id, the key that matches the ZiPS files.
+        data_tests: [not_null]
+      - name: player_name
+        description: Player name as the API wrote it.
+      - name: primary_position
+        description: Position with the most games in the prior season.
+        data_tests:
+          - accepted_values:
+              values: ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']
+      - name: position_group
+        description: "`C`, `IF`, `OF`, `DH`, `SP` or `RP`."
+        data_tests:
+          - accepted_values:
+              values: ['C', 'IF', 'OF', 'DH', 'SP', 'RP']
+      - name: primary_games
+        description: Games at the primary position in the prior season.
+      - name: primary_share
+        description: Share of the prior season's position games spent at the primary position.
+      - name: positions_played
+        description: Number of different positions played in the prior season.
+      - name: is_two_way
+        description: Pitched and played elsewhere a meaningful amount in the prior season.
+
+  - name: player_position_games
+    description: >
+      Games at each position in the PRIOR season, one row per player per position. A row for
+      season S describes season S - 1, so it can be used to forecast S without peeking at S.
+      Shows which positions a player can cover, not only his main one (see `player_positions`).
+      Feeds the depth chart's slot eligibility.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id, position]
+    columns:
+      - name: season
+        description: Season being forecast. The games come from the season before it.
+        data_tests: [not_null]
+      - name: prior_season
+        description: The season the games were taken from. Always `season - 1`.
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: position
+        description: "`P`, `C`, `1B`, `2B`, `3B`, `SS`, `LF`, `CF`, `RF` or `DH`."
+        data_tests:
+          - accepted_values:
+              values: ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']
+      - name: games
+        description: Games at the position in the prior season, summed across teams.
+      - name: games_started
+        description: Games started at the position in the prior season.
+      - name: innings
+        description: Innings at the position in the prior season.
+      - name: share_of_position_games
+        description: This position's games divided by all the player's position games, 0 to 1.
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1

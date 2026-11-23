@@ -45,3 +45,54 @@ models:
         description: True if the team made the postseason (any berth).
       - name: won_division
         description: True if the team won its division (with or without a first-round bye).
+
+  - name: int__player_season_positions
+    description: >
+      One row per player per season: the position he played most that season (DH counts as a
+      position, pitching as P), summed across teams so a player traded mid-season is one row.
+      Ties go to innings, then games started, then position code. Pitchers are split into
+      starters (SP, started at least half of their games) and relievers (RP).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: player_name
+        description: Player name as the API wrote it.
+      - name: primary_position
+        description: Position with the most games that season.
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']
+      - name: position_group
+        description: "`C`, `IF` (1B, 2B, 3B, SS), `OF` (LF, CF, RF), `DH`, `SP` or `RP`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['C', 'IF', 'OF', 'DH', 'SP', 'RP']
+      - name: primary_games
+        description: Games at the primary position.
+      - name: total_position_games
+        description: Games summed over every position played (a game at two positions counts twice).
+      - name: primary_share
+        description: Primary-position games divided by total position games, between 0 and 1.
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+      - name: positions_played
+        description: Number of different positions played.
+      - name: pitching_games
+        description: Games pitched.
+      - name: pitching_starts
+        description: Games started as a pitcher.
+      - name: non_pitching_games
+        description: Games at any position other than pitcher (including DH).
+      - name: is_two_way
+        description: At least 10 games pitched and at least 30 games at other positions.

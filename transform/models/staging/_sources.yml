@@ -71,6 +71,35 @@ sources:
           - name: fetched_at
             description: UTC time the file was downloaded.
 
+      - name: fielding
+        description: >
+          Who played which position, one row per player, team and position per season, from
+          2000. Pitchers are position `P` and designated hitters `DH`. One Parquet file per
+          season (`season=<year>.parquet`), fetched one team at a time so a player traded
+          mid-season has a row for each team. Saved by `bucco extract mlb-positions`. Each file
+          is checked for 30 teams and the main positions before it is written.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/fielding/*.parquet')"
+        columns:
+          - name: season
+            description: Season year.
+          - name: team_id
+            description: MLB team id.
+          - name: mlbam_id
+            description: MLB Advanced Media player id, the key that matches the ZiPS files.
+          - name: player_name
+            description: Player name as the API wrote it.
+          - name: position
+            description: "`P`, `C`, `1B`, `2B`, `3B`, `SS`, `LF`, `CF`, `RF` or `DH`."
+          - name: games
+            description: Games played at the position for the team.
+          - name: games_started
+            description: Games started at the position for the team. For `P`, starts as a pitcher.
+          - name: innings
+            description: Innings at the position (thirds as decimals, so 69.2 is 69.667).
+          - name: fetched_at
+            description: UTC time the file was downloaded.
+
   - name: manual_projections
     description: >
       Preseason win projections and betting win totals collected by hand. Cannot be
@@ -100,5 +129,39 @@ sources:
             description: Where the numbers came from, if recorded.
           - name: notes
             description: Free-text notes from the input file.
+          - name: source_file
+            description: Name of the CSV the row came from.
+
+      - name: player_projections
+        description: >
+          One row per player per projection file: a source (e.g. `zips`), a player type
+          (batter or pitcher), a season and a download date. Downloaded by hand from FanGraphs
+          and saved by `bucco extract player-projections`. These are independent player
+          projections, not rosters: summing them by team badly overcounts playing time.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/snapshots/player_projections.parquet')"
+        columns:
+          - name: season
+            description: Season being projected.
+          - name: source
+            description: Lowercase projection system, from the file name (e.g. `zips`).
+          - name: player_type
+            description: "`batter` or `pitcher`."
+          - name: as_of_date
+            description: >
+              Download date (text, `YYYY-MM-DD`), from `_player_downloads.csv`. Null if not yet
+              filled in.
+          - name: fangraphs_id
+            description: FanGraphs `PlayerId` (text; can be non-numeric for some prospects).
+          - name: mlbam_id
+            description: MLB Advanced Media player id, the key that matches MLB data.
+          - name: player_name
+            description: Player name as FanGraphs wrote it.
+          - name: team_abbr
+            description: Team abbreviation as FanGraphs wrote it (e.g. `KCR`).
+          - name: team_id
+            description: MLB team id, resolved from the abbreviation.
+          - name: war
+            description: Projected WAR for the projected playing time.
           - name: source_file
             description: Name of the CSV the row came from.

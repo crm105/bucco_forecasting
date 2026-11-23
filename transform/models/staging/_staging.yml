@@ -118,3 +118,98 @@ models:
         description: Free-text notes from the input file.
       - name: source_file
         description: Name of the CSV the row came from.
+
+  - name: stg_projections__player_projections
+    description: >
+      Hand-downloaded player projections (batters and pitchers), typed and with text trimmed.
+      One row per player per file; batter-only columns are null for pitchers and the reverse.
+      Empty until player projection CSVs are added.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, source, player_type, fangraphs_id]
+    columns:
+      - name: season
+        description: Season being projected.
+        data_tests: [not_null]
+      - name: source
+        description: Lowercase projection system, from the file name (e.g. `zips`).
+        data_tests: [not_null]
+      - name: player_type
+        description: "`batter` or `pitcher`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['batter', 'pitcher']
+      - name: as_of_date
+        description: '{{ doc("as_of_date") }}'
+      - name: fangraphs_id
+        description: FanGraphs `PlayerId`, kept as text.
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id, the key that matches MLB data.
+        data_tests: [not_null]
+      - name: player_name
+        description: Player name as FanGraphs wrote it.
+      - name: source_team_abbr
+        description: Team abbreviation as FanGraphs wrote it (e.g. `KCR`).
+      - name: team_id
+        description: '{{ doc("team_id") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('teams')
+              field: team_id
+      - name: war
+        description: Projected WAR for the projected playing time.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: -10
+              max_value: 20
+      - name: plate_appearances
+        description: Projected plate appearances. Null for pitchers.
+      - name: innings_pitched
+        description: Projected innings pitched. Null for batters.
+      - name: source_file
+        description: Name of the CSV the row came from.
+
+  - name: stg_mlb__fielding
+    description: >
+      Fielding splits from the MLB Stats API, typed. One row per season, team, player and
+      position; pitchers are position `P` and designated hitters `DH`.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, team_id, mlbam_id, position]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: team_id
+        description: '{{ doc("team_id") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('teams')
+              field: team_id
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: player_name
+        description: Player name as the API wrote it.
+      - name: position
+        description: Position played.
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['P', 'C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH']
+      - name: games
+        description: Games played at the position for the team.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 200
+      - name: games_started
+        description: Games started at the position for the team. For `P`, starts as a pitcher.
+      - name: innings
+        description: Innings at the position (thirds as decimals).
