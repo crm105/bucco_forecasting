@@ -10,6 +10,7 @@
     bucco backtest [--models constant last_year] [--first-season 2001] [--include-shortened]
     bucco forecast --model last_year [--season 2027] [--as-of 2027-03-01] [--no-save]
     bucco report [--model last_year] [--season 2027] [--as-of 2027-03-15]
+    bucco outlook [--team PIT] [--model steamer_optimized] [--season 2027]
     bucco leaderboard [--pirates] [--first-season 2001] [--include-shortened]
 """
 
@@ -30,7 +31,7 @@ from bucco.evaluate import backtest, leaderboard
 from bucco.extract import mlb_api, mlb_positions, player_projections, projections
 from bucco.models import REGISTRY
 from bucco.report import data as report_data
-from bucco.report import render
+from bucco.report import outlook_data, outlook_render, render
 
 
 def _extract(args: argparse.Namespace) -> None:
@@ -94,6 +95,13 @@ def _report(args: argparse.Namespace) -> None:
     print(f"Wrote {render.write_report(data)}")
 
 
+def _outlook(args: argparse.Namespace) -> None:
+    """Write a team outlook page from the saved forecast and the player projections."""
+    data = outlook_data.build_outlook_data(args.team.upper(), args.season, args.model,
+                                           args.as_of)
+    print(f"Wrote {outlook_render.write_outlook(data)}")
+
+
 def _leaderboard(args: argparse.Namespace) -> None:
     results = backtest.load_results()
     print(leaderboard.leaderboard(results, args.first_season, args.include_shortened))
@@ -148,6 +156,15 @@ def main(argv: list[str] | None = None) -> None:
     rep.add_argument("--as-of", metavar="YYYY-MM-DD",
                      help="use the saved forecast with this as-of date (default: latest)")
     rep.set_defaults(func=_report)
+
+    out = commands.add_parser("outlook", help="write a team outlook page (positions, free agents)")
+    out.add_argument("--team", default="PIT", help="team abbreviation (default: PIT)")
+    out.add_argument("--model", default="steamer_optimized",
+                     help="a player-projection model (default: steamer_optimized)")
+    out.add_argument("--season", type=int, help="default: the latest season with a forecast")
+    out.add_argument("--as-of", metavar="YYYY-MM-DD",
+                     help="use the saved forecast with this as-of date (default: latest)")
+    out.set_defaults(func=_outlook)
 
     board = commands.add_parser("leaderboard", help="show saved backtest results")
     board.add_argument("--pirates", action="store_true", help="also show Pirates errors")

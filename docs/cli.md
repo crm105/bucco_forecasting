@@ -81,6 +81,25 @@ Fits the model on every completed season, then predicts the season after the lat
 
 Forecasts are saved to `forecasts.season_forecasts` in `bucco.duckdb`. Running again with the same model, season and as-of date replaces that row set; a different as-of date is kept as a separate version. The version made on or before Opening Day is the forecast of record.
 
+## Outlook: explain one team's forecast
+
+```
+bucco outlook
+bucco outlook --team NYY
+bucco outlook --team PIT --model steamer_optimized --season 2027 --as-of 2026-11-23
+```
+
+Builds a team outlook page at `reports/<season>/<model>_<team>_outlook_<as-of>.html`. It covers strengths and weaknesses by position (every team on the same playing time, from the lineup optimizer), batting against pitching for all teams, run components, projected leaders, the division, what would move the number, and free-agent targets. Free agents are the projection file's unsigned players, valued by adding each one to the roster and re-running the optimizer. It reads the saved forecast, so run `bucco forecast --model steamer_optimized` first; it also needs the player projection CSVs in `data/manual/projections/` for the free agents.
+
+| Option | Effect |
+| --- | --- |
+| `--team` | Team abbreviation (default `PIT`). |
+| `--model` | A player-projection model (default `steamer_optimized`). |
+| `--season` | Default is the latest season with a saved forecast for the model. |
+| `--as-of` | Use the saved forecast with this as-of date (default: latest). |
+
+Wording lives in `config/outlook_text.yml`; edit it there and rebuild. The `team-outlook` skill in `.claude/skills/` describes the refresh and review steps.
+
 ## Report: write the HTML forecast report
 
 ```
