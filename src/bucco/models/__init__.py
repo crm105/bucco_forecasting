@@ -1,12 +1,14 @@
 """Season forecasting models. Add new models to REGISTRY so the CLI can run them."""
 
 from bucco.models.base import SeasonForecaster
+from bucco.models.blend import BlendModel, make_blend_optimized_model
 from bucco.models.depth_chart_model import DepthChartModel, PlayerData
 from bucco.models.naive import ConstantModel, PersistenceModel
 from bucco.models.player_inputs import (
     make_depth_chart_model,
     make_steamer_model,
     make_steamer_optimized_model,
+    make_zips_optimized_model,
 )
 from bucco.models.smoothing import HoltModel
 
@@ -17,8 +19,22 @@ REGISTRY = {
     "depth_chart": make_depth_chart_model,
     "steamer": make_steamer_model,
     "steamer_optimized": make_steamer_optimized_model,
+    "zips_optimized": make_zips_optimized_model,
+    "blend_optimized": make_blend_optimized_model,
 }
 
-__all__ = ["REGISTRY", "ConstantModel", "DepthChartModel", "HoltModel", "PersistenceModel",
-           "PlayerData", "SeasonForecaster", "make_depth_chart_model",
-           "make_steamer_model", "make_steamer_optimized_model"]
+__all__ = [
+    "REGISTRY",
+    "BlendModel",
+    "ConstantModel",
+    "DepthChartModel",
+    "HoltModel",
+    "PersistenceModel",
+    "PlayerData",
+    "SeasonForecaster",
+    "make_blend_optimized_model",
+    "make_depth_chart_model",
+    "make_steamer_model",
+    "make_steamer_optimized_model",
+    "make_zips_optimized_model",
+]
