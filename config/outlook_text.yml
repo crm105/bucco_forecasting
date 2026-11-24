@@ -28,7 +28,7 @@ headlines:
 intro: >-
   With every team's plate appearances shared out by our lineup optimizer, the projections put
   the {team_short}' pitching staff {pitching_rank} in baseball and their lineup {batting_rank}.
-  Together that comes to {wins} wins, {win_rank} in MLB.
+  With their schedule, that comes to {wins} wins, {win_rank} in MLB.
 
 hero_wins: "Projected wins"
 # {low}, {high}
@@ -94,6 +94,10 @@ division_note: "Batting from the optimized lineups, pitching as projected: the f
 division_behind: "The forecast puts the {team_short} {place} in the division, {gap} behind the {leader}."
 # {team_short}, {gap} (gap includes the unit, e.g. "3 wins")
 division_ahead: "The forecast puts the {team_short} first in the division, {gap} ahead of the next team."
+# {team_short}, {wins} (signed, e.g. "+0.3"), {rank}
+division_schedule: >-
+  Their schedule is worth {wins} wins compared with facing an average opponent every game (the
+  {rank} easiest in MLB); the forecast includes it.
 
 move_heading: "What would move the number"
 # {gap}, {gaps}

@@ -25,6 +25,7 @@ from bucco.extract.projections import INPUT_DIR
 from bucco.models import lineup_optimizer as lo
 from bucco.models.base import GAMES
 from bucco.models.scenario import compare_lineups, unsigned_players
+from bucco.models.schedule import neutral_from_adjusted
 
 # Current alignment (since 2013). Abbreviations as in the teams seed.
 DIVISIONS = {
@@ -182,6 +183,22 @@ def leaders(alloc: pd.DataFrame, batters: pd.DataFrame, pitchers: pd.DataFrame,
     return bats, arms
 
 
+# ---- schedule ----------------------------------------------------------------------------
+def schedule_effects(forecast: pd.DataFrame, season: int, abbr: pd.Series,
+                     path=DUCKDB_PATH) -> pd.Series | None:
+    """Wins each team gains (+) or loses (-) from its schedule, compared with playing an average
+    opponent every game: the saved forecast minus the neutral forecast it was adjusted from.
+    None when the season's schedule is not in the database."""
+    games = _query("select team_id, opponent_id, games from marts.team_matchups "
+                   "where season = ?", [season], path)
+    if games.empty:
+        return None
+    ids = {a: i for i, a in abbr.items()}
+    adjusted = forecast["wins"].rename(index=ids) / GAMES
+    neutral = neutral_from_adjusted(adjusted, games)
+    return ((adjusted - neutral) * GAMES).rename(index=dict(abbr.items()))
+
+
 # ---- free agents -------------------------------------------------------------------------
 def last_team(mlbam_ids, season: int, abbr: pd.Series, path=DUCKDB_PATH) -> dict:
     """Each player's team last season (most innings in the field), where known."""
@@ -321,6 +338,7 @@ def build_outlook_data(team: str = "PIT", season: int | None = None,
                         "pitching": float(pit[t])} for t in DIVISIONS[division]),
                       key=lambda r: -r["wins"])
 
+    sched = schedule_effects(forecast, season, abbr, path)
     fa_bat_pool = unsigned_players(source, season, "batters", projections_dir)
     team_inputs = inputs[inputs["team_id"] == team_id]
     fa_bat = free_agent_batters(team_inputs, fa_bat_pool, positions, rep, rpw, team_id)
@@ -351,6 +369,8 @@ def build_outlook_data(team: str = "PIT", season: int | None = None,
         "runs": {c: summary(runs[c]) for c in runs.columns},
         "leaders": {"batters": bats, "pitchers": arms},
         "division": {"name": division, "rows": div_rows},
+        "schedule": (None if sched is None else
+                     {"wins": float(sched[team]), "easiest_rank": rank_of(sched, team)}),
         "free_agents": {"batters": fa_bat.head(FA_SHOWN).to_dict("records"), "pair": pair,
                         "pitchers": fa_pit.to_dict("records"), "pitching_base": pit_base},
         "scores": backtest_scores(model, path),

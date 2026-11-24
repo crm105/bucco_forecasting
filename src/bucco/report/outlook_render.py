@@ -35,6 +35,7 @@ ALLOWED: dict[str, set[str]] = {
     "division_heading": {"division"},
     "division_behind": {"team_short", "place", "leader", "gap"},
     "division_ahead": {"team_short", "gap"},
+    "division_schedule": {"team_short", "wins", "rank"},
     "move_lineup_below": {"gap", "gaps"},
     "move_lineup_above": {"gap"},
     "move_rotation": {"names", "share", "total"},
@@ -50,7 +51,7 @@ REQUIRED = [
     "defense_item", "positions_heading", "positions_intro", "positions_chart_note",
     "positions_caption", "scatter_heading", "scatter_intro", "runs_heading", "runs_intro",
     "leaders_heading", "leaders_note", "division_heading", "division_note", "division_behind",
-    "division_ahead", "move_heading", "move_lineup_below", "move_lineup_above", "move_rotation",
+    "division_ahead", "division_schedule", "move_heading", "move_lineup_below", "move_lineup_above", "move_rotation",
     "fa_heading", "fa_intro", "fa_off_position", "fa_pair", "fa_pitching_intro", "fa_caveat",
     "footer",
 ]
@@ -344,6 +345,10 @@ def render_outlook(data: dict, text: dict | None = None) -> str:
         div_text = fill(text["division_behind"], team_short=short, place=ordinal(place + 1),
                         leader=short_name(leader["name"]),
                         gap=wins_text(leader['wins'] - div['rows'][place]['wins']))
+    if data.get("schedule"):
+        div_text += " " + fill(text["division_schedule"], team_short=short,
+                               wins=_signed(data["schedule"]["wins"]),
+                               rank=ordinal(data["schedule"]["easiest_rank"]))
 
     fa = data["free_agents"]
     fa_rows = "".join(

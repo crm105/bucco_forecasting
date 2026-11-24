@@ -114,6 +114,7 @@ def _data():
                     "pitchers": [{"name": f"Arm {i}", "role": "SP", "ip": 170.0, "fip": None,
                                   "war": w} for i, w in enumerate([4.7, 3.8, 3.3])]},
         "division": {"name": "NL Central", "rows": div},
+        "schedule": {"wins": 0.3, "easiest_rank": 9},
         "free_agents": {
             "batters": [{"name": "Corner Bat", "mlbam_id": 1, "gain": 2.0, "pa": 625.0,
                          "where": [("3B", 385.0), ("RF", 175.0)], "natives": ["RF"],
@@ -143,6 +144,7 @@ def test_render_produces_valid_charts_and_the_key_facts():
     text = re.sub(r"<[^>]+>", " ", re.sub(r"<style>.*?</style>", "", page, flags=re.DOTALL))
     assert "A strong pitching staff carrying a below-average lineup" in text
     assert "81.1" in text and "8 wins behind the Brewers" in text
+    assert "worth +0.3 wins" in text and "9th easiest" in text
     assert "Corner Bat *" in text                      # off-position flag
     assert "<td>3.4</td><td>590</td><td>+2.0</td>" in page   # projected WAR and PA beside gain
     assert "Flores Jr. 135, replacement 40" in text    # who loses time
