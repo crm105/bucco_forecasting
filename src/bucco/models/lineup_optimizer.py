@@ -332,11 +332,16 @@ def optimize_league(batters: pd.DataFrame, positions: pd.DataFrame,
                     fatigue: float = FATIGUE_RUNS, power: float = FATIGUE_POWER,
                     rest_bonus: float = REST_BONUS, reserve_pa: float = RESERVE_PA,
                     switch: SwitchMatrix | None = None, selection_base: float = SELECTION_BASE,
-                    selection_up: float = SELECTION_UP, max_pa: float = MAX_PA
-                    ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Optimize every team in one season. Returns (allocations with team_id, player inputs)."""
+                    selection_up: float = SELECTION_UP, max_pa: float = MAX_PA,
+                    anchor_pa: float | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Optimize every team in one season. Returns (allocations with team_id, player inputs).
+
+    anchor_pa: anchor every player's fatigue curve at this PA instead of his projected PA, so
+    the projection's playing time has no say in the allocation."""
     runs_per_win, rep_runs = war_scale(batters)
     inputs = player_inputs(batters, positions, switch, selection_base, selection_up)
+    if anchor_pa is not None:
+        inputs = inputs.assign(proj_pa=float(anchor_pa))
     out = []
     for team_id, group in inputs.groupby("team_id"):
         alloc = optimize_team(group, rep_runs, runs_per_win, fatigue=fatigue, power=power,

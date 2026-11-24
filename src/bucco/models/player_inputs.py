@@ -54,3 +54,10 @@ def make_steamer_optimized_model() -> DepthChartModel:
     """Factory for the registry: Steamer batters through the lineup optimizer, pitchers as given."""
     return DepthChartModel(load_player_data("steamer", playing_time="optimized"),
                            name="steamer_optimized")
+
+
+def make_zips_optimized_model() -> DepthChartModel:
+    """Factory for the registry: ZiPS batters through the lineup optimizer; ZiPS pitchers (a raw
+    list of every player) through the depth chart."""
+    return DepthChartModel(load_player_data("zips", playing_time="optimized"),
+                           name="zips_optimized")

@@ -69,12 +69,15 @@ class PlayerData:
     source: the projection system's name, for messages. playing_time: one of PLAYING_TIME.
     matchups: season, team_id, opponent_id, games, as in the team_matchups mart (optional; the
     schedule is fixed before the season, so the forecast season's may be used).
+    optimizer_options: keyword arguments for `lineup_optimizer.optimize_league` in `optimized`
+    mode (e.g. anchor_pa).
     """
 
     def __init__(self, batters: pd.DataFrame, pitchers: pd.DataFrame,
                  positions: pd.DataFrame, source: str = "ZiPS",
                  playing_time: str = "depth_chart",
-                 matchups: pd.DataFrame | None = None) -> None:
+                 matchups: pd.DataFrame | None = None,
+                 optimizer_options: dict | None = None) -> None:
         if playing_time not in PLAYING_TIME:
             raise ValueError(f"playing_time must be one of {PLAYING_TIME}, not {playing_time!r}")
         self.source = source
@@ -82,6 +85,7 @@ class PlayerData:
         self.batters = batters.copy()
         self.pitchers = pitchers.copy()
         self.positions = positions
+        self.optimizer_options = dict(optimizer_options or {})
         self.matchups = (matchups if matchups is not None
                          else pd.DataFrame(columns=["season", "team_id", "opponent_id", "games"]))
         for frame in (self.batters, self.pitchers):
@@ -136,7 +140,8 @@ class PlayerData:
         rows = batters.rename(columns={"pa": "plate_appearances"})
         if "fld_runs" not in rows:
             rows["fld_runs"] = np.nan
-        allocations, _ = optimize_league(rows, self.positions[self.positions["season"] == season])
+        allocations, _ = optimize_league(rows, self.positions[self.positions["season"] == season],
+                                         **self.optimizer_options)
         return allocations.groupby("team_id")["war"].sum()
 
     def _as_given(self, rows: pd.DataFrame, volume: str, raw_list: float, season: int) -> bool:
