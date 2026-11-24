@@ -34,6 +34,15 @@ Read the generated page and check these. Report anything odd to the user; do not
 - **The headline** is picked by rule from the pitching and batting ranks; make sure it matches the story the numbers tell.
 - **Compared with the previous outlook:** if one exists, note the biggest changes (wins, ranks, free-agent order) and whether they come from new projections, a new model setting or roster moves.
 
+## Questions about a move
+
+For "what if they sign X", "where does Y's playing time go" or a trade, run
+`uv run bucco scenario --team PIT --add "X" [--remove "Y"]` (or `ScenarioLab` in
+`src/bucco/models/scenario.py` for several scenarios at once) rather than writing a one-off
+script. Explain the chain it prints: who changes position, who loses PA (often bench players
+or replacement level, not the starter at the new player's position) and where the WAR gain
+comes from.
+
 ## Changing the page
 
 - **Wording** (headings, sentences, caveats, labels): edit only `config/outlook_text.yml`. Keep each entry's `{placeholders}` (listed in the comment above it) and keep sentences true for any value. The build fails with the entry name if a placeholder is wrong. Then rebuild with the same options so the same file is overwritten.

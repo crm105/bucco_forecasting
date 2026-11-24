@@ -11,6 +11,7 @@
     bucco forecast --model last_year [--season 2027] [--as-of 2027-03-01] [--no-save]
     bucco report [--model last_year] [--season 2027] [--as-of 2027-03-15]
     bucco outlook [--team PIT] [--model steamer_optimized] [--season 2027]
+    bucco scenario --team PIT [--add "Ian Happ" ...] [--remove "Bryan Reynolds" ...]
     bucco leaderboard [--pirates] [--first-season 2001] [--include-shortened]
 """
 
@@ -102,6 +103,19 @@ def _outlook(args: argparse.Namespace) -> None:
     print(f"Wrote {outlook_render.write_outlook(data)}")
 
 
+def _scenario(args: argparse.Namespace) -> None:
+    """Re-optimize a team's lineup with players added or removed and show what changes."""
+    from bucco.models.scenario import ScenarioError, ScenarioLab
+
+    if not args.add and not args.remove:
+        sys.exit("give at least one --add or --remove")
+    try:
+        lab = ScenarioLab(args.season, args.source)
+        print(lab.run(args.team, add=args.add or (), remove=args.remove or ()).report())
+    except ScenarioError as e:
+        sys.exit(str(e))
+
+
 def _leaderboard(args: argparse.Namespace) -> None:
     results = backtest.load_results()
     print(leaderboard.leaderboard(results, args.first_season, args.include_shortened))
@@ -165,6 +179,18 @@ def main(argv: list[str] | None = None) -> None:
     out.add_argument("--as-of", metavar="YYYY-MM-DD",
                      help="use the saved forecast with this as-of date (default: latest)")
     out.set_defaults(func=_outlook)
+
+    scen = commands.add_parser("scenario",
+                               help="re-optimize a team's lineup with players added or removed")
+    scen.add_argument("--team", default="PIT", help="team abbreviation (default: PIT)")
+    scen.add_argument("--add", action="append", metavar="PLAYER",
+                      help="a free agent or another team's player, by name or MLBAM id "
+                           "(repeat for several)")
+    scen.add_argument("--remove", action="append", metavar="PLAYER",
+                      help="one of the team's own players (repeat for several)")
+    scen.add_argument("--source", default="steamer", help="projection source (default: steamer)")
+    scen.add_argument("--season", type=int, help="default: the latest projected season")
+    scen.set_defaults(func=_scenario)
 
     board = commands.add_parser("leaderboard", help="show saved backtest results")
     board.add_argument("--pirates", action="store_true", help="also show Pirates errors")

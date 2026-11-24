@@ -100,6 +100,26 @@ Builds a team outlook page at `reports/<season>/<model>_<team>_outlook_<as-of>.h
 
 Wording lives in `config/outlook_text.yml`; edit it there and rebuild. The `team-outlook` skill in `.claude/skills/` describes the refresh and review steps.
 
+## Scenario: what if a team adds or loses players
+
+```
+bucco scenario --team PIT --add "Ian Happ"
+bucco scenario --team PIT --add "Ian Happ" --remove "Bryan Reynolds"
+bucco scenario --team PIT --add "Juan Soto" --add "Pete Alonso" --remove 668804
+```
+
+Re-runs the lineup optimizer for one team with players added (free agents from the projection file, or another team's players, as in a trade) and removed (its own players), and prints the change in team batting WAR, the change in PA by player and position, and the change in WAR by player. Players are named as in the projection file (case and accents ignored; a unique partial name works) or by MLBAM id; an ambiguous name lists the matches. Each player keeps his own projection. Batting only: pitchers are not re-allocated.
+
+| Option | Effect |
+| --- | --- |
+| `--team` | Team abbreviation (default `PIT`). |
+| `--add` | A player to add; repeat for several. |
+| `--remove` | One of the team's players to remove; repeat for several. |
+| `--source` | Projection source (default `steamer`). |
+| `--season` | Default is the latest projected season. |
+
+In Python, `bucco.models.scenario.ScenarioLab` loads a season once and runs many scenarios (`lab.run("PIT", add=[...], remove=[...])`); the result has `gain`, `pa_change()`, `war_change()`, `losers()` and `report()`. The outlook's free-agent screen uses the same code.
+
 ## Report: write the HTML forecast report
 
 ```
