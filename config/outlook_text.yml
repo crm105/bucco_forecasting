@@ -111,7 +111,8 @@ fa_intro: >-
   Players the projection lists with no team are unsigned. To value each one, we add him to the
   roster and re-run the lineup optimizer. The gain is the change in team batting WAR, with
   everyone else's playing time and positions re-shuffled to fit him in, so it already counts
-  the player who loses time. Projected WAR and PA are the projection's own, wherever he signs.
+  the players who lose time (the two who lose most are listed). Projected WAR and PA are the
+  projection's own, wherever he signs.
 # {names}
 fa_off_position: >-
   Marked *: the optimizer would put {names} mostly at a position they did not play last season.

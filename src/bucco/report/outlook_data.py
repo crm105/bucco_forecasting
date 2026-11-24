@@ -24,6 +24,7 @@ from bucco.evaluate.metrics import Z_80
 from bucco.extract.projections import INPUT_DIR
 from bucco.models import lineup_optimizer as lo
 from bucco.models.base import GAMES
+from bucco.models.scenario import compare_lineups, unsigned_players
 
 # Current alignment (since 2013). Abbreviations as in the teams seed.
 DIVISIONS = {
@@ -182,28 +183,6 @@ def leaders(alloc: pd.DataFrame, batters: pd.DataFrame, pitchers: pd.DataFrame,
 
 
 # ---- free agents -------------------------------------------------------------------------
-def unsigned_players(source: str, season: int, kind: str,
-                     directory: Path = INPUT_DIR) -> pd.DataFrame:
-    """Players in the projection file with no team (unsigned), in the mart's column names."""
-    path = Path(directory) / f"{source}_{kind}_individual_{season}.csv"
-    if not path.exists():
-        return pd.DataFrame()
-    raw = pd.read_csv(path, encoding="utf-8-sig")
-    raw = raw[raw["Team"].isna() & raw["MLBAMID"].notna()]
-    common = {"Name": "player_name", "MLBAMID": "mlbam_id", "WAR": "war", "G": "games"}
-    extra = ({"PA": "plate_appearances", "Off": "off_runs", "Def": "def_runs", "Fld": "fld_runs",
-              "BsR": "bsr_runs", "wRC+": "wrc_plus"} if kind == "batters"
-             else {"IP": "innings_pitched", "GS": "games_started", "FIP": "fip"})
-    cols = {k: v for k, v in {**common, **extra}.items() if k in raw}
-    out = raw[list(cols)].rename(columns=cols)
-    out["mlbam_id"] = out["mlbam_id"].astype("int64")
-    for c in out.columns.drop(["player_name", "mlbam_id"]):
-        out[c] = pd.to_numeric(out[c], errors="coerce")
-    if "fld_runs" not in out and kind == "batters":
-        out["fld_runs"] = np.nan
-    return out.reset_index(drop=True)
-
-
 def last_team(mlbam_ids, season: int, abbr: pd.Series, path=DUCKDB_PATH) -> dict:
     """Each player's team last season (most innings in the field), where known."""
     rows = _query("select mlbam_id, team_id, sum(innings) as inn from staging.stg_mlb__fielding "
@@ -216,38 +195,38 @@ def last_team(mlbam_ids, season: int, abbr: pd.Series, path=DUCKDB_PATH) -> dict
 def free_agent_batters(team_inputs: pd.DataFrame, unsigned: pd.DataFrame,
                        positions: pd.DataFrame, rep_runs: float, runs_per_win: float,
                        team_id: int, n_candidates: int = FA_CANDIDATES) -> pd.DataFrame:
-    """Gain in team batting WAR from signing each unsigned batter, by re-optimizing the lineup.
+    """Gain in team batting WAR from signing each unsigned batter, by re-optimizing the lineup
+    (`bucco.models.scenario.compare_lineups`).
 
     Candidates: unsigned batters with at least FA_MIN_PA projected PA, the best n_candidates by
-    WAR per 600 PA. proj_war and proj_pa are the projection's own. `off_position` flags a player the optimizer puts mostly at a position he did
-    not play last season (worth a second look).
+    WAR per 600 PA. proj_war and proj_pa are the projection's own. `losers` are the players who
+    lose the most PA. `off_position` flags a player the optimizer puts mostly at a position he
+    did not play last season (worth a second look).
     """
     cols = ["name", "mlbam_id", "gain", "pa", "where", "natives", "off_position", "wrc_plus",
-            "war600", "proj_war", "proj_pa"]
+            "war600", "proj_war", "proj_pa", "losers"]
     if unsigned.empty:
         return pd.DataFrame(columns=cols)
     pool = unsigned[unsigned["plate_appearances"] >= FA_MIN_PA].copy()
     pool["war600"] = pool["war"] / pool["plate_appearances"] * 600
     pool = pool.sort_values("war600", ascending=False).head(n_candidates).assign(team_id=team_id)
-    base = lo.optimize_team(team_inputs, rep_runs, runs_per_win)["war"].sum()
+    before = lo.optimize_team(team_inputs, rep_runs, runs_per_win)
     rows = []
     for r in pool.itertuples(index=False):
         one = lo.player_inputs(pd.DataFrame([r._asdict()]), positions)
         if one.empty:
             continue
-        alloc = lo.optimize_team(pd.concat([team_inputs, one], ignore_index=True),
-                                 rep_runs, runs_per_win)
-        me = alloc[alloc["mlbam_id"] == r.mlbam_id].groupby("position")["pa"].sum() \
-            .sort_values(ascending=False)
+        change = compare_lineups(team_inputs, rep_runs, runs_per_win, add=one, before=before)
+        where = change.where(r.player_name)
         natives = one["natives"].iloc[0]
-        main = me.index[0] if len(me) else None
-        rows.append({"name": r.player_name, "mlbam_id": r.mlbam_id,
-                     "gain": float(alloc["war"].sum() - base), "pa": float(me.sum()),
-                     "where": [(q, float(p)) for q, p in me.head(2).items()],
+        main = where[0][0] if where else None
+        rows.append({"name": r.player_name, "mlbam_id": r.mlbam_id, "gain": change.gain,
+                     "pa": sum(p for _, p in where), "where": where[:2],
                      "natives": list(natives),
                      "off_position": bool(main and main != "DH" and main not in natives),
                      "wrc_plus": r.wrc_plus, "war600": r.war600,
-                     "proj_war": float(r.war), "proj_pa": float(r.plate_appearances)})
+                     "proj_war": float(r.war), "proj_pa": float(r.plate_appearances),
+                     "losers": change.losers(2)})
     return pd.DataFrame(rows, columns=cols).sort_values("gain", ascending=False)
 
 
@@ -266,10 +245,8 @@ def best_pair(fa: pd.DataFrame, unsigned: pd.DataFrame, team_inputs: pd.DataFram
     picks = unsigned[unsigned["mlbam_id"].isin([first["mlbam_id"], second["mlbam_id"]])] \
         .assign(team_id=team_id)
     both = lo.player_inputs(picks, positions)
-    base = lo.optimize_team(team_inputs, rep_runs, runs_per_win)["war"].sum()
-    alloc = lo.optimize_team(pd.concat([team_inputs, both], ignore_index=True),
-                             rep_runs, runs_per_win)
-    return {"names": [first["name"], second["name"]], "gain": float(alloc["war"].sum() - base),
+    change = compare_lineups(team_inputs, rep_runs, runs_per_win, add=both)
+    return {"names": [first["name"], second["name"]], "gain": change.gain,
             "separate": float(first["gain"] + second["gain"])}
 
 

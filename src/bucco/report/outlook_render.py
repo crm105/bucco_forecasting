@@ -141,6 +141,23 @@ def _signed(v: float, digits: int = 1) -> str:
     return f"{v:+.{digits}f}".replace("-", "−")
 
 
+SUFFIXES = {"jr.", "jr", "sr.", "sr", "ii", "iii", "iv"}
+
+
+def surname(name: str) -> str:
+    """Last name, keeping a suffix with it ("Rafael Flores Jr." -> "Flores Jr.")."""
+    parts = name.split()
+    if len(parts) > 2 and parts[-1].lower() in SUFFIXES:
+        return " ".join(parts[-2:])
+    return parts[-1] if parts else name
+
+
+def losers_text(losers: list) -> str:
+    """("Jake Mangum", 135.0), ... -> "Mangum 135, Simon 125"; replacement level by name."""
+    return ", ".join(f"{'replacement' if n == 'replacement level' else surname(n)} {pa:.0f}"
+                     for n, pa in losers) or "—"
+
+
 def and_join(items: list[str]) -> str:
     """'a', 'a and b', 'a, b and c'."""
     items = list(items)
@@ -337,7 +354,8 @@ def render_outlook(data: dict, text: dict | None = None) -> str:
         f"<td>{escape(', '.join(f'{q} {p:.0f}' for q, p in r['where']))}</td>"
         f"<td>{_num(r['wrc_plus'])}</td>"
         f"<td>{r['proj_war']:.1f}</td><td>{r['proj_pa']:.0f}</td>"
-        f"<td>{escape(_signed(r['gain']))}</td></tr>" for r in fa["batters"])
+        f"<td>{escape(_signed(r['gain']))}</td>"
+        f"<td>{escape(losers_text(r.get('losers') or []))}</td></tr>" for r in fa["batters"])
     off = [r["name"] for r in fa["batters"] if r["off_position"]]
     fa_notes = []
     if off:
@@ -360,7 +378,8 @@ def render_outlook(data: dict, text: dict | None = None) -> str:
         fa_section = f"""<h2>{fill(text['fa_heading'])}</h2><p>{fill(text['fa_intro'])}</p>
 <div class="scroll"><table><tr><th>Free agent</th><th>Last team</th><th>Played</th>
 <th style="text-align:left">Where he would play (PA)</th><th>wRC+</th><th>Projected WAR</th>
-<th>Projected PA</th><th>Gain (WAR)</th></tr>
+<th>Projected PA</th><th>Gain (WAR)</th>
+<th style="text-align:left">Loses time (PA)</th></tr>
 {fa_rows}</table></div>
 {''.join(f'<p class="muted">{n}</p>' for n in fa_notes)}
 <h3>Pitching</h3><p class="muted">{pit_intro}</p>

@@ -20,6 +20,12 @@ def test_ordinals_and_joins():
     assert orr.wins_text(1.2) == "1 win" and orr.wins_text(7.6) == "8 wins"
 
 
+def test_surnames_keep_suffixes():
+    assert orr.surname("Jake Mangum") == "Mangum"
+    assert orr.surname("Rafael Flores Jr.") == "Flores Jr."
+    assert orr.losers_text([]) == "—"
+
+
 def test_short_names():
     assert orr.short_name("Pittsburgh Pirates") == "Pirates"
     assert orr.short_name("Boston Red Sox") == "Red Sox"
@@ -113,6 +119,7 @@ def _data():
                          "where": [("3B", 385.0), ("RF", 175.0)], "natives": ["RF"],
                          "off_position": True, "wrc_plus": 120.0, "war600": 2.4,
                          "proj_war": 3.4, "proj_pa": 590.0,
+                         "losers": [("Rafael Flores Jr.", 135.0), ("replacement level", 40.0)],
                          "last_team": "CHC"},
                         {"name": "Our Guy", "mlbam_id": 2, "gain": 1.3, "pa": 600.0,
                          "where": [("2B", 600.0)], "natives": ["2B"], "off_position": False,
@@ -138,6 +145,7 @@ def test_render_produces_valid_charts_and_the_key_facts():
     assert "81.1" in text and "8 wins behind the Brewers" in text
     assert "Corner Bat *" in text                      # off-position flag
     assert "<td>3.4</td><td>590</td><td>+2.0</td>" in page   # projected WAR and PA beside gain
+    assert "Flores Jr. 135, replacement 40" in text    # who loses time
     assert "Corner Bat and Our Guy" in text            # the pair, and-joined
     assert "Arm 0, Arm 1 and Arm 2" in text            # rotation concentration note
     assert 'class="mine"><td>Our Guy' in page          # last season's own player highlighted
