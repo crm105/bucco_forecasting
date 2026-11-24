@@ -213,3 +213,25 @@ models:
         description: Games started at the position for the team. For `P`, starts as a pitcher.
       - name: innings
         description: Innings at the position (thirds as decimals).
+
+  - name: stg_mlb__schedules
+    description: >
+      Regular-season games from the MLB Stats API, typed, one row per game, cancelled listings
+      dropped. Includes the upcoming season once its schedule is published.
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: game_pk
+        description: MLB game id.
+        data_tests: [unique, not_null]
+      - name: game_date
+        description: Last scheduled date of the game.
+      - name: home_team_id
+        description: '{{ doc("team_id") }}'
+        data_tests: [not_null]
+      - name: away_team_id
+        description: '{{ doc("team_id") }}'
+        data_tests: [not_null]
+      - name: status
+        description: Game status, e.g. `Final` or `Scheduled`.

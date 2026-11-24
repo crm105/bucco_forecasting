@@ -71,6 +71,30 @@ sources:
           - name: fetched_at
             description: UTC time the file was downloaded.
 
+      - name: schedules
+        description: >
+          Regular-season schedules, one row per game, from 2000, including the next season once
+          MLB publishes it. One Parquet file per season (`season=<year>.parquet`). A postponed
+          game appears once with its final status; `Cancelled` rows are games moved to a new
+          game id or never made up. Saved by `bucco extract mlb-schedules`.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/schedules/*.parquet')"
+        columns:
+          - name: season
+            description: Season year.
+          - name: game_pk
+            description: MLB game id.
+          - name: game_date
+            description: Last scheduled date of the game (YYYY-MM-DD).
+          - name: home_team_id
+            description: MLB team id of the home team.
+          - name: away_team_id
+            description: MLB team id of the away team.
+          - name: status
+            description: Game status, e.g. `Final`, `Scheduled`, `Cancelled`.
+          - name: fetched_at
+            description: UTC time the file was downloaded.
+
       - name: fielding
         description: >
           Who played which position, one row per player, team and position per season, from

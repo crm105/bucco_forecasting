@@ -294,3 +294,31 @@ models:
           - dbt_utils.accepted_range:
               min_value: 0
               max_value: 1
+
+  - name: team_matchups
+    description: >
+      Scheduled games between each pair of teams per season, from each team's side (both
+      orders appear, with the same count). Fixed before the season, so a model may use the
+      season it forecasts (strength of schedule).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, team_id, opponent_id]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: team_id
+        description: '{{ doc("team_id") }}'
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('teams')
+              field: team_id
+      - name: opponent_id
+        description: MLB team id of the opponent.
+        data_tests: [not_null]
+      - name: games
+        description: Games scheduled between the two teams.
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 1

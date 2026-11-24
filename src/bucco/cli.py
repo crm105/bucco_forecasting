@@ -3,6 +3,7 @@
     bucco extract mlb-seasons
     bucco extract mlb-standings [--seasons 2024 2025] [--refresh]
     bucco extract mlb-positions [--seasons 2024 2025] [--refresh]
+    bucco extract mlb-schedules [--seasons 2026 2027] [--refresh]
     bucco extract projections
     bucco extract player-projections
     bucco extract all
@@ -40,6 +41,9 @@ def _extract(args: argparse.Namespace) -> None:
         mlb_api.extract_seasons()
     if args.target in ("mlb-standings", "all"):
         mlb_api.extract_standings(
+            seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
+    if args.target in ("mlb-schedules", "all"):
+        mlb_api.extract_schedules(
             seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
     if args.target in ("mlb-positions", "all"):
         mlb_positions.extract_positions(
@@ -135,6 +139,10 @@ def main(argv: list[str] | None = None) -> None:
     standings = targets.add_parser("mlb-standings", help="final standings, one file per season")
     standings.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
     standings.add_argument("--refresh", action="store_true", help="fetch again even if saved")
+    schedules = targets.add_parser("mlb-schedules",
+                                   help="regular-season schedules, one file per season")
+    schedules.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
+    schedules.add_argument("--refresh", action="store_true", help="fetch again even if saved")
     positions = targets.add_parser("mlb-positions",
                                    help="who played where, one file per season (30 requests each)")
     positions.add_argument("--seasons", type=int, nargs="*", help="only these seasons")

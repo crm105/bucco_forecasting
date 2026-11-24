@@ -20,11 +20,12 @@ bucco report                       # 6. write the HTML report
 | `bucco extract mlb-seasons` | Downloads the season calendar (Opening Day, season end dates). Always re-fetched. Writes `data/cache/mlb_api/seasons.parquet`. |
 | `bucco extract mlb-standings` | Downloads final standings, one file per completed season since 2000. Skips seasons already saved and refuses to save a season that fails the 30-team and wins-equal-losses checks. |
 | `bucco extract mlb-positions` | Downloads who played which position (games, starts and innings by player, team and season) for every completed season since 2000, 30 requests per season. Skips seasons already saved and refuses to save a season that fails the 30-team and main-position checks. Writes `data/cache/mlb_api/fielding/season=<year>.parquet`. Takes `--seasons` and `--refresh` like `mlb-standings`. |
+| `bucco extract mlb-schedules` | Downloads every regular-season schedule since 2000, plus the next season once MLB publishes it (one file per season, `data/cache/mlb_api/schedules/season=<year>.parquet`). Completed seasons already saved are skipped; the current and next season are always fetched again. Refuses a season whose game count (cancelled listings aside) is more than 2% off 2,430. Used for the strength-of-schedule adjustment. Takes `--seasons` and `--refresh`. |
 | `bucco extract projections` | Reads the CSVs collected by hand in `data/manual/projections/`, validates them, and writes `data/snapshots/preseason_projections.parquet`. An empty folder is fine. |
 | `bucco extract player-projections` | Reads the player-level FanGraphs downloads (e.g. `zips_batters_individual_2024.csv`) from the same folder, validates them, and writes `data/snapshots/player_projections.parquet`. Download dates come from `_player_downloads.csv`. See the [folder README](../data/manual/projections/README.md). |
-| `bucco extract all` | Runs all five. |
+| `bucco extract all` | Runs all six. |
 
-Options for `mlb-standings` and `mlb-positions`:
+Options for `mlb-standings`, `mlb-schedules` and `mlb-positions`:
 
 - `--seasons 2024 2025` fetches only those seasons.
 - `--refresh` downloads seasons again even if they are already saved.
