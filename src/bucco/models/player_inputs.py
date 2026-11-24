@@ -30,11 +30,14 @@ def load_player_data(source: str = "zips", path=DUCKDB_PATH,
                            "and team_id is not null and mlbam_id is not null", [source]).df()
         positions = con.sql("select season, mlbam_id, position, games "
                             "from marts.player_position_games").df()
+        matchups = con.sql("select season, team_id, opponent_id, games "
+                           "from marts.team_matchups").df()
     batters = proj[proj["player_type"] == "batter"].rename(
         columns={"plate_appearances": "pa", "bsr_runs": "bsr"})
     pitchers = proj[proj["player_type"] == "pitcher"].rename(
         columns={"innings_pitched": "ip", "games_started": "gs"})
-    return PlayerData(batters, pitchers, positions, source=label, playing_time=playing_time)
+    return PlayerData(batters, pitchers, positions, source=label, playing_time=playing_time,
+                      matchups=matchups)
 
 
 def make_depth_chart_model() -> DepthChartModel:

@@ -19,6 +19,10 @@ The model then turns team WAR into a win percentage:
 
     mean_win_pct = intercept + slope * (team WAR - that season's league-average team WAR)
 
+Then, when the season's schedule is known (`matchups`), each team's win percentage is adjusted
+for strength of schedule: its expected record against the opponents it actually plays (log5;
+see schedule.py). League wins still add up to the number of games.
+
 Centering on the league average removes the drift in a system's overall WAR level between
 seasons (for ZiPS, about 20 per team in 2011-2013, 43 now), which would otherwise swamp the slope. The slope and
 intercept are an ordinary least-squares line over earlier seasons only; with fewer than
@@ -39,6 +43,7 @@ import pandas as pd
 
 from bucco.models import depth_chart as dc
 from bucco.models.base import GAMES, LUCK_SD, forecast_frame, residual_sd
+from bucco.models.schedule import schedule_adjusted
 
 log = logging.getLogger(__name__)
 
@@ -62,11 +67,14 @@ class PlayerData:
     batters: BATTER_COLUMNS (+ optional as_of_date); pitchers: PITCHER_COLUMNS (+ as_of_date);
     positions: season, mlbam_id, position, games, as in the player_position_games mart.
     source: the projection system's name, for messages. playing_time: one of PLAYING_TIME.
+    matchups: season, team_id, opponent_id, games, as in the team_matchups mart (optional; the
+    schedule is fixed before the season, so the forecast season's may be used).
     """
 
     def __init__(self, batters: pd.DataFrame, pitchers: pd.DataFrame,
                  positions: pd.DataFrame, source: str = "ZiPS",
-                 playing_time: str = "depth_chart") -> None:
+                 playing_time: str = "depth_chart",
+                 matchups: pd.DataFrame | None = None) -> None:
         if playing_time not in PLAYING_TIME:
             raise ValueError(f"playing_time must be one of {PLAYING_TIME}, not {playing_time!r}")
         self.source = source
@@ -74,6 +82,8 @@ class PlayerData:
         self.batters = batters.copy()
         self.pitchers = pitchers.copy()
         self.positions = positions
+        self.matchups = (matchups if matchups is not None
+                         else pd.DataFrame(columns=["season", "team_id", "opponent_id", "games"]))
         for frame in (self.batters, self.pitchers):
             if "as_of_date" not in frame:
                 frame["as_of_date"] = pd.NaT
@@ -147,10 +157,11 @@ class DepthChartModel:
 
     name = "depth_chart"
 
-    def __init__(self, data: PlayerData, name: str | None = None) -> None:
+    def __init__(self, data: PlayerData, name: str | None = None, schedule: bool = True) -> None:
         if name is not None:
             self.name = name
         self.data = data
+        self.schedule = schedule           # adjust for strength of schedule when it is known
         self.seasons = set(data.seasons)   # seasons this model can predict
         self.intercept = 0.5
         self.slope = THEORY_SLOPE
@@ -186,5 +197,13 @@ class DepthChartModel:
             raise ValueError(f"{self.name}: no {self.data.source} player projections for {season}")
         war = self.data.team_war(season, as_of)
         centered = war - war.mean()
-        mean = features["team_id"].map(self.intercept + self.slope * centered)
+        neutral = self.intercept + self.slope * centered
+        if self.schedule:
+            games = self.data.matchups[self.data.matchups["season"] == season]
+            if games.empty:
+                log.info("%s: no %d schedule, so no strength-of-schedule adjustment",
+                         self.name, season)
+            else:
+                neutral = schedule_adjusted(neutral, games)
+        mean = features["team_id"].map(neutral)
         return forecast_frame(features, mean.fillna(self.intercept), self.sd)
