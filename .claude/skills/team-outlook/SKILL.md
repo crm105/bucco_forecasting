@@ -28,7 +28,7 @@ Run these in order, stopping on any error:
 
 Read the generated page and check these. Report anything odd to the user; do not paper over it in the wording.
 
-- **Off-position free agents** (marked `*`): the optimizer would play them mostly at a position they did not play last season. Moves from the outfield to third base are a known artifact (Statcast OAA ignores outfield arms). The page already says so; mention any striking case.
+- **Off-position free agents** (marked `*`): the optimizer would play them mostly at a position they did not play last season. Moves up the defensive spectrum (outfield to the infield, anywhere to CF or SS) are rare in real baseball and should be rare here; if one appears, mention it.
 - **Free agents who have since signed:** the list is the projection file's unsigned players. If the download is old, say so.
 - **Replacement level in the lineup:** a large share of a position (more than about 200 PA) going to replacement level means the team's projected roster is thin there, or the fatigue curve is too steep for it. Check before presenting it as a finding.
 - **The headline** is picked by rule from the pitching and batting ranks; make sure it matches the story the numbers tell.

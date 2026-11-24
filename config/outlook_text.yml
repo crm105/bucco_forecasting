@@ -115,8 +115,8 @@ fa_intro: >-
 # {names}
 fa_off_position: >-
   Marked *: the optimizer would put {names} mostly at a position they did not play last season.
-  Statcast's fielding measure ignores outfield arms and rates some moves (such as outfield to
-  third base) as easier than they are, so read these as the value of the bat.
+  The move is charged a fielding cost and an extra penalty for being new to the position, but
+  check that the player can handle it before counting on the full gain.
 # {first}, {second}, {gain}, {separate}
 fa_pair: >-
   Signing {first} and {second} together adds {gain} WAR ({separate} if their gains simply added
