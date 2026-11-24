@@ -202,10 +202,40 @@ the corner bats Suzuki +2.0 and Arozarena +1.8 WAR, second basemen Arraez +1.6, 
 Lowe +1.3; close to additive in pairs (Suzuki and Arraez +3.5). The optimizer put Suzuki at
 third base, an artifact of OAA not counting outfield arms.
 
+## Adjustment floor on position switches (2026-11-23)
+
+The outlook kept moving outfielders to the infield (Suzuki to 3B, Grisham to 2B). Cause: the
+OAA difficulties put 2B/3B/SS at a third to a half of what the positional adjustments give
+them (relative to 1B: OAA 3B 4.1, 2B 6.0, SS 10.0; adjustments 15, 15, 20), while LF/RF agree
+(about 5). We charged the small OAA fielding cost but credited the full adjustment, so LF/RF to
+3B netted about +9 runs per 700 PA and CF to 2B/3B +5 to +7, before any bat. The raw per-move
+averages agree with the fit (LF to 3B +0.3), so it is not smoothing: the few players who made
+these moves (8 to 19 player-seasons per move) were mostly infielders by trade.
+
+Fix (`ADJ_FLOOR`): a move's fielding change is the lower of the OAA change and the adjustment
+gap adj(p) - adj(q), so moving up the spectrum never adds defense. Moves down the spectrum and
+those where OAA is stricter (into CF) are unchanged.
+
+| | without floor | with floor |
+| --- | --- | --- |
+| RMSE 2012–2026 | 9.67 | 9.68 |
+| RMSE 2022–2026 | 9.46 | 9.49 |
+| Outfielders' PA at 2B/3B/SS, per team (2016–2027 mean) | 169 | 8.5 |
+| PA at positions not played last season, per team | 447 | 359 |
+| Replacement-level PA, per team | 136 | 101 |
+
+Kept for realism: the error cost is within noise. 2027: Pirates 81.2 wins (was 81.1); Suzuki
+now goes to 1B (+2.0), Grisham stays in CF (+1.4), Robert drops off the free-agent list.
+
+Next idea: observed move frequencies (outfield spots trade 30–38% of the time, OF to 2B/3B
+2–7%, C to anywhere but 1B 0–2%) carry information OAA cannot. Rarity mixes "cannot do it" with
+"too valuable where he is", so rather than reading it directly, fit a few group penalties
+(OF to IF, IF to OF, within IF, within OF, off C) so the optimizer's move rates on past seasons
+match the observed rates of regulars, and keep it only if backtest error holds.
+
 ## Open questions
 
 - The selection penalty is a judgment call; nothing in the data can measure it directly.
 - Fatigue is the same for everyone. Catchers and older players may need more rest.
 - Pitchers are not done yet (taken as Steamer projects them).
-- Third base looks too easy for outfielders (OAA has no outfield arm component); a hand
-  adjustment or an arm-inclusive fielding measure would fix moves like RF to 3B.
+- Calibrate the switch penalties to how often teams make each move (see below).

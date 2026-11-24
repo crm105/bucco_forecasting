@@ -26,7 +26,21 @@ RPW = 10.0
 # ---- defense ----------------------------------------------------------------------------
 # A small additive matrix: change(p -> q) = h[p] - h[q] (harder positions cost fielding runs).
 H = {"1B": 0.0, "2B": 6.0, "3B": 4.0, "SS": 10.0, "LF": 5.0, "CF": 13.0, "RF": 5.0}
-SWITCH = SwitchMatrix({(p, q): H[p] - H[q] for p in H for q in H if p != q}, H)
+SWITCH = SwitchMatrix({(p, q): H[p] - H[q] for p in H for q in H if p != q}, H, adj_floor=False)
+FLOORED = SwitchMatrix(SWITCH.delta, H, adj_floor=True)
+
+
+def test_the_adjustment_floor_stops_moves_up_the_spectrum_adding_defense():
+    # OAA alone: LF -> 3B costs 1 fielding run but gains 10 of positional adjustment.
+    assert SWITCH.change("LF", "3B") == pytest.approx(1.0)
+    assert FLOORED.change("LF", "3B") == pytest.approx(-10.0)
+    # Where OAA is stricter, or the move is down the spectrum, OAA stands.
+    assert FLOORED.change("1B", "CF") == pytest.approx(-15.0)       # adj gap stricter here
+    assert FLOORED.change("CF", "LF") == pytest.approx(8.0)          # OAA stricter than +10
+    assert FLOORED.change("SS", "1B") == pytest.approx(10.0)
+    # Total defense never rises moving up from an average corner outfielder.
+    lf = defense_at(POSITION_ADJ_RUNS["LF"], "LF", ("LF",), FLOORED)
+    assert max(lf[q] for q in ("2B", "3B", "SS", "CF")) < lf["LF"]
 
 
 def _defense(def700, anchor, natives):

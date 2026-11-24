@@ -53,6 +53,11 @@ NAMED_ADJ = {"C": 12.5, "SS": 7.5, "MID": 2.5, "COR": -7.5, "1B": -12.5, "DH": -
 # 700 PA, plus a share of any rise in difficulty (the fitted difficulty, in fielding runs).
 SELECTION_BASE = 2.0
 SELECTION_UP = 0.5
+# Cap the fielding change of a move at the positional-adjustment gap, so moving up the spectrum
+# never adds defensive value. Statcast OAA rates 2B/3B/SS at a third to a half of the difficulty
+# the adjustments give them (relative to 1B and the outfield corners), which on its own lets any
+# corner outfielder gain about 9 runs per 700 PA by moving to third base.
+ADJ_FLOOR = True
 SWITCH_FILE = DATA_DIR / "derived" / "position_switch.csv"
 
 # Statcast has no catcher OAA, so two players are placed on the spectrum by assumption:
@@ -77,12 +82,19 @@ class SwitchMatrix:
     an optimizer would exploit.
     """
 
-    def __init__(self, delta: Mapping[tuple[str, str], float], difficulty: Mapping[str, float]):
+    def __init__(self, delta: Mapping[tuple[str, str], float], difficulty: Mapping[str, float],
+                 adj_floor: bool = ADJ_FLOOR):
         self.delta = dict(delta)
         self.difficulty = dict(difficulty)
+        self.adj_floor = adj_floor
 
     def change(self, p: str, q: str) -> float:
-        return self.difficulty[p] - self.difficulty[q]
+        """Fielding change from p to q: the OAA fit, or with `adj_floor` the lower of it and
+        the positional-adjustment gap adj(p) - adj(q), whichever is stricter."""
+        oaa = self.difficulty[p] - self.difficulty[q]
+        if not self.adj_floor:
+            return oaa
+        return min(oaa, POSITION_ADJ_RUNS[p] - POSITION_ADJ_RUNS[q])
 
     def selection(self, p: str, q: str, base: float = SELECTION_BASE,
                   up: float = SELECTION_UP) -> float:
@@ -90,14 +102,14 @@ class SwitchMatrix:
         return base + up * rise
 
 
-def load_switch_matrix(path=SWITCH_FILE) -> SwitchMatrix:
+def load_switch_matrix(path=SWITCH_FILE, adj_floor: bool = ADJ_FLOOR) -> SwitchMatrix:
     if not path.exists():
         raise RuntimeError(f"{path} not found. Run scripts/fit_position_switch.py first.")
     fit = pd.read_csv(path)
     delta = {(r["from"], r["to"]): r["delta"] for _, r in fit.iterrows()}
     difficulty = {**dict(zip(fit["from"], fit["difficulty_from"], strict=True)),
                   **dict(zip(fit["to"], fit["difficulty_to"], strict=True))}
-    return SwitchMatrix(delta, difficulty)
+    return SwitchMatrix(delta, difficulty, adj_floor)
 
 
 def defense_at(def700: float, anchor: str | None, natives: tuple[str, ...],
