@@ -219,11 +219,11 @@ def free_agent_batters(team_inputs: pd.DataFrame, unsigned: pd.DataFrame,
     """Gain in team batting WAR from signing each unsigned batter, by re-optimizing the lineup.
 
     Candidates: unsigned batters with at least FA_MIN_PA projected PA, the best n_candidates by
-    WAR per 600 PA. `off_position` flags a player the optimizer puts mostly at a position he did
+    WAR per 600 PA. proj_war and proj_pa are the projection's own. `off_position` flags a player the optimizer puts mostly at a position he did
     not play last season (worth a second look).
     """
     cols = ["name", "mlbam_id", "gain", "pa", "where", "natives", "off_position", "wrc_plus",
-            "war600"]
+            "war600", "proj_war", "proj_pa"]
     if unsigned.empty:
         return pd.DataFrame(columns=cols)
     pool = unsigned[unsigned["plate_appearances"] >= FA_MIN_PA].copy()
@@ -246,7 +246,8 @@ def free_agent_batters(team_inputs: pd.DataFrame, unsigned: pd.DataFrame,
                      "where": [(q, float(p)) for q, p in me.head(2).items()],
                      "natives": list(natives),
                      "off_position": bool(main and main != "DH" and main not in natives),
-                     "wrc_plus": r.wrc_plus, "war600": r.war600})
+                     "wrc_plus": r.wrc_plus, "war600": r.war600,
+                     "proj_war": float(r.war), "proj_pa": float(r.plate_appearances)})
     return pd.DataFrame(rows, columns=cols).sort_values("gain", ascending=False)
 
 

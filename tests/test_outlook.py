@@ -112,10 +112,11 @@ def _data():
             "batters": [{"name": "Corner Bat", "mlbam_id": 1, "gain": 2.0, "pa": 625.0,
                          "where": [("3B", 385.0), ("RF", 175.0)], "natives": ["RF"],
                          "off_position": True, "wrc_plus": 120.0, "war600": 2.4,
+                         "proj_war": 3.4, "proj_pa": 590.0,
                          "last_team": "CHC"},
                         {"name": "Our Guy", "mlbam_id": 2, "gain": 1.3, "pa": 600.0,
                          "where": [("2B", 600.0)], "natives": ["2B"], "off_position": False,
-                         "wrc_plus": np.nan, "war600": 2.5, "last_team": "PIT"}],
+                         "wrc_plus": np.nan, "war600": 2.5, "proj_war": 2.9, "proj_pa": 610.0, "last_team": "PIT"}],
             "pair": {"names": ["Corner Bat", "Our Guy"], "gain": 3.2, "separate": 3.3},
             "pitchers": [{"name": "Starter", "role": "SP", "ip": 175.0, "fip": 3.8, "war": 3.2,
                           "gain": 1.5}],
@@ -136,6 +137,7 @@ def test_render_produces_valid_charts_and_the_key_facts():
     assert "A strong pitching staff carrying a below-average lineup" in text
     assert "81.1" in text and "8 wins behind the Brewers" in text
     assert "Corner Bat *" in text                      # off-position flag
+    assert "<td>3.4</td><td>590</td><td>+2.0</td>" in page   # projected WAR and PA beside gain
     assert "Corner Bat and Our Guy" in text            # the pair, and-joined
     assert "Arm 0, Arm 1 and Arm 2" in text            # rotation concentration note
     assert 'class="mine"><td>Our Guy' in page          # last season's own player highlighted

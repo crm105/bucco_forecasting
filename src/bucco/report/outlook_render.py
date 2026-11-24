@@ -336,6 +336,7 @@ def render_outlook(data: dict, text: dict | None = None) -> str:
         f"<td>{escape('/'.join(r['natives']) or '—')}</td>"
         f"<td>{escape(', '.join(f'{q} {p:.0f}' for q, p in r['where']))}</td>"
         f"<td>{_num(r['wrc_plus'])}</td>"
+        f"<td>{r['proj_war']:.1f}</td><td>{r['proj_pa']:.0f}</td>"
         f"<td>{escape(_signed(r['gain']))}</td></tr>" for r in fa["batters"])
     off = [r["name"] for r in fa["batters"] if r["off_position"]]
     fa_notes = []
@@ -358,7 +359,8 @@ def render_outlook(data: dict, text: dict | None = None) -> str:
     if fa["batters"] or fa["pitchers"]:
         fa_section = f"""<h2>{fill(text['fa_heading'])}</h2><p>{fill(text['fa_intro'])}</p>
 <div class="scroll"><table><tr><th>Free agent</th><th>Last team</th><th>Played</th>
-<th style="text-align:left">Where he would play (PA)</th><th>wRC+</th><th>Gain (WAR)</th></tr>
+<th style="text-align:left">Where he would play (PA)</th><th>wRC+</th><th>Projected WAR</th>
+<th>Projected PA</th><th>Gain (WAR)</th></tr>
 {fa_rows}</table></div>
 {''.join(f'<p class="muted">{n}</p>' for n in fa_notes)}
 <h3>Pitching</h3><p class="muted">{pit_intro}</p>
