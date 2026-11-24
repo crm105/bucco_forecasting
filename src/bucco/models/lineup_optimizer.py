@@ -58,6 +58,12 @@ SELECTION_UP = 0.5
 # the adjustments give them (relative to 1B and the outfield corners), which on its own lets any
 # corner outfielder gain about 9 runs per 700 PA by moving to third base.
 ADJ_FLOOR = True
+# Extra selection penalty for moves the optimizer makes far more often than teams do, relative
+# to its usual share of real moves (runs per 700 PA). Fitted by scripts/fit_rarity_penalty.py:
+# outfielders went to first base twice as often as on real teams (5x the optimizer's usual share);
+# 6 runs brings that in line.
+RARITY_PENALTY: dict[tuple[str, str], float] = {("LF", "1B"): 6.0, ("CF", "1B"): 6.0,
+                                                 ("RF", "1B"): 6.0}
 SWITCH_FILE = DATA_DIR / "derived" / "position_switch.csv"
 
 # Statcast has no catcher OAA, so two players are placed on the spectrum by assumption:
@@ -83,10 +89,12 @@ class SwitchMatrix:
     """
 
     def __init__(self, delta: Mapping[tuple[str, str], float], difficulty: Mapping[str, float],
-                 adj_floor: bool = ADJ_FLOOR):
+                 adj_floor: bool = ADJ_FLOOR,
+                 rarity: Mapping[tuple[str, str], float] | None = None):
         self.delta = dict(delta)
         self.difficulty = dict(difficulty)
         self.adj_floor = adj_floor
+        self.rarity = dict(RARITY_PENALTY if rarity is None else rarity)
 
     def change(self, p: str, q: str) -> float:
         """Fielding change from p to q: the OAA fit, or with `adj_floor` the lower of it and
@@ -99,17 +107,18 @@ class SwitchMatrix:
     def selection(self, p: str, q: str, base: float = SELECTION_BASE,
                   up: float = SELECTION_UP) -> float:
         rise = max(0.0, self.difficulty[q] - self.difficulty[p])
-        return base + up * rise
+        return base + up * rise + self.rarity.get((p, q), 0.0)
 
 
-def load_switch_matrix(path=SWITCH_FILE, adj_floor: bool = ADJ_FLOOR) -> SwitchMatrix:
+def load_switch_matrix(path=SWITCH_FILE, adj_floor: bool = ADJ_FLOOR,
+                       rarity: Mapping[tuple[str, str], float] | None = None) -> SwitchMatrix:
     if not path.exists():
         raise RuntimeError(f"{path} not found. Run scripts/fit_position_switch.py first.")
     fit = pd.read_csv(path)
     delta = {(r["from"], r["to"]): r["delta"] for _, r in fit.iterrows()}
     difficulty = {**dict(zip(fit["from"], fit["difficulty_from"], strict=True)),
                   **dict(zip(fit["to"], fit["difficulty_to"], strict=True))}
-    return SwitchMatrix(delta, difficulty, adj_floor)
+    return SwitchMatrix(delta, difficulty, adj_floor, rarity)
 
 
 def defense_at(def700: float, anchor: str | None, natives: tuple[str, ...],

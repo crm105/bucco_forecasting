@@ -26,8 +26,20 @@ RPW = 10.0
 # ---- defense ----------------------------------------------------------------------------
 # A small additive matrix: change(p -> q) = h[p] - h[q] (harder positions cost fielding runs).
 H = {"1B": 0.0, "2B": 6.0, "3B": 4.0, "SS": 10.0, "LF": 5.0, "CF": 13.0, "RF": 5.0}
-SWITCH = SwitchMatrix({(p, q): H[p] - H[q] for p in H for q in H if p != q}, H, adj_floor=False)
-FLOORED = SwitchMatrix(SWITCH.delta, H, adj_floor=True)
+SWITCH = SwitchMatrix({(p, q): H[p] - H[q] for p in H for q in H if p != q}, H, adj_floor=False,
+                      rarity={})
+FLOORED = SwitchMatrix(SWITCH.delta, H, adj_floor=True, rarity={})
+
+
+def test_the_rarity_penalty_adds_to_selection_only_for_the_named_move():
+    rare = SwitchMatrix(SWITCH.delta, H, adj_floor=False, rarity={("LF", "1B"): 6.0})
+    assert rare.selection("LF", "1B") == pytest.approx(SWITCH.selection("LF", "1B") + 6.0)
+    assert rare.selection("1B", "LF") == pytest.approx(SWITCH.selection("1B", "LF"))
+    # Only at positions he has not played: an outfielder who played 1B keeps his 1B value.
+    played = defense_at(-7.5, "LF", ("LF", "1B"), rare)["1B"]
+    assert played == pytest.approx(defense_at(-7.5, "LF", ("LF", "1B"), SWITCH)["1B"])
+    assert defense_at(-7.5, "LF", ("LF",), rare)["1B"] == pytest.approx(
+        defense_at(-7.5, "LF", ("LF",), SWITCH)["1B"] - 6.0)
 
 
 def test_the_adjustment_floor_stops_moves_up_the_spectrum_adding_defense():

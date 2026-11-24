@@ -227,15 +227,39 @@ those where OAA is stricter (into CF) are unchanged.
 Kept for realism: the error cost is within noise. 2027: Pirates 81.2 wins (was 81.1); Suzuki
 now goes to 1B (+2.0), Grisham stays in CF (+1.4), Robert drops off the free-agent list.
 
-Next idea: observed move frequencies (outfield spots trade 30–38% of the time, OF to 2B/3B
-2–7%, C to anywhere but 1B 0–2%) carry information OAA cannot. Rarity mixes "cannot do it" with
-"too valuable where he is", so rather than reading it directly, fit a few group penalties
-(OF to IF, IF to OF, within IF, within OF, off C) so the optimizer's move rates on past seasons
-match the observed rates of regulars, and keep it only if backtest error holds.
+## Rarity penalty: calibrating to how often teams make each move (2026-11-23)
+
+`scripts/fit_rarity_penalty.py` counts moves (at least 100 innings, or 52 PA, away from a
+player's main position) by group, real teams against the optimizer, 2016–2025. Real teams move
+players about 2.5 times as often as the optimizer (injuries, rest and slumps force moves a
+full-season plan never needs), so absolute rates cannot set penalties: matching them would
+lower every penalty. The usable signal is relative: which groups the optimizer over-uses
+compared with its usual share (median ratio about 0.4). Read one way only: a move rarer in the
+optimizer than in reality is not made cheaper (players often stay put because they are worth
+more where they are, which the optimizer already sees).
+
+With the adjustment floor, outfield to infield was in line (0.47). One group stood out:
+outfield to first base at 2.00, five times the usual share, also inflating 1B to outfield
+(0.84) through outfielders the optimizer listed as first basemen. On the fitted numbers a corner
+outfielder at 1B cost only about 2 runs. About 90 of the 110 PA per team that outfielders got at
+1B were at a position new to them, so an extra selection penalty reaches it.
+
+| Penalty on LF/CF/RF to 1B (runs per 700 PA) | 0 | 3 | 6 | 10 |
+| --- | --- | --- | --- | --- |
+| OF to 1B, optimizer / real | 2.00 | 1.06 | **0.44** | 0.33 |
+| 1B to OF | 0.84 | 0.48 | 0.32 | 0.32 |
+| IF to 1B | 0.24 | 0.32 | 0.43 | 0.44 |
+| OF to IF | 0.47 | 0.55 | 0.58 | 0.60 |
+| Median of the other groups | 0.38 | 0.43 | 0.43 | 0.44 |
+
+Kept at 6 (`RARITY_PENALTY`): RMSE 9.67 over 2012–2026 (9.68 before) and 9.49 over 2022–2026
+(unchanged). 2027: Pirates 81.2; Suzuki now stays in right field (+1.8) and no free agent is
+placed at a new position.
 
 ## Open questions
 
 - The selection penalty is a judgment call; nothing in the data can measure it directly.
 - Fatigue is the same for everyone. Catchers and older players may need more rest.
 - Pitchers are not done yet (taken as Steamer projects them).
-- Calibrate the switch penalties to how often teams make each move (see below).
+- Rarely seen moves (C to anywhere but 1B) are rare in the optimizer too, so the rarity
+  fit says nothing about their size; the adjustment floor and selection penalty set it.
