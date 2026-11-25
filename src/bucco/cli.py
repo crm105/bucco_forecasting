@@ -7,6 +7,7 @@
     bucco extract mlb-player-stats [--seasons 2024 2025] [--refresh]
     bucco extract mlb-park-splits [--seasons 2024 2025] [--refresh]
     bucco extract mlb-player-splits [--seasons 2024 2025] [--refresh]
+    bucco extract mlb-rosters [--seasons 2024 2025] [--refresh]
     bucco extract projections
     bucco extract player-projections
     bucco extract all
@@ -39,6 +40,7 @@ from bucco.extract import (
     mlb_player_splits,
     mlb_player_stats,
     mlb_positions,
+    mlb_rosters,
     player_projections,
     projections,
 )
@@ -67,6 +69,9 @@ def _extract(args: argparse.Namespace) -> None:
             seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
     if args.target in ("mlb-player-splits", "all"):
         mlb_player_splits.extract_player_splits(
+            seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
+    if args.target in ("mlb-rosters", "all"):
+        mlb_rosters.extract_rosters(
             seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
     if args.target in ("projections", "all"):
         projections.extract_projections()
@@ -182,6 +187,11 @@ def main(argv: list[str] | None = None) -> None:
                                       "factors by side (three requests per season)")
     psplits.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
     psplits.add_argument("--refresh", action="store_true", help="fetch again even if saved")
+    rosters = targets.add_parser("mlb-rosters",
+                                 help="40-man rosters with injured-list status on each team's "
+                                      "Opening Day (30 requests per season)")
+    rosters.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
+    rosters.add_argument("--refresh", action="store_true", help="fetch again even if saved")
     targets.add_parser("projections", help="check and save hand-collected projections")
     targets.add_parser("player-projections",
                        help="check and save hand-downloaded player projections (ZiPS etc.)")
