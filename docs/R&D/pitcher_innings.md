@@ -245,7 +245,8 @@ Not kept in the code.
 ## Status
 
 Built, registered and backtested. With swingmen able to start and the starting penalty,
-`marcel_staff_optimized` (9.74) is our best own-projection model, ahead of `marcel_park_optimized` (9.81). Not yet
+`marcel_staff_optimized` (9.74; 9.69 since Opening Day injury status was added, see
+[availability.md](availability.md)) is our best own-projection model, ahead of `marcel_park_optimized` (9.81). Not yet
 used by the outlook (which shows depth-chart innings) or adopted; Steamer (9.50) stays the
 model of record.
 
