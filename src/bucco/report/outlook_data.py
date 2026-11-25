@@ -45,13 +45,13 @@ MODEL_SOURCE = {"steamer_optimized": "steamer", "steamer": "steamer", "depth_cha
                 "marcel_park_optimized": "marcel_park_fielding",
                 "marcel_staff_optimized": "marcel_staff"}
 # Marcel source -> (aging, what rates are shrunk toward, park-neutral, fielding from Steamer
-# and ZiPS, pitcher innings), as in the models
-MARCEL_SETTINGS = {"marcel": (False, "league", False, False, "marcel"),
-                   "marcel_aging": (True, "league", False, False, "marcel"),
-                   "marcel_shrunk": (True, "fitted", False, False, "marcel"),
-                   "marcel_park": (True, "fitted", True, False, "marcel"),
-                   "marcel_park_fielding": (True, "fitted", True, True, "marcel"),
-                   "marcel_staff": (True, "fitted", True, True, "baseline")}
+# and ZiPS, pitcher innings, availability from Opening Day 40-man status), as in the models
+MARCEL_SETTINGS = {"marcel": (False, "league", False, False, "marcel", "none"),
+                   "marcel_aging": (True, "league", False, False, "marcel", "none"),
+                   "marcel_shrunk": (True, "fitted", False, False, "marcel", "none"),
+                   "marcel_park": (True, "fitted", True, False, "marcel", "none"),
+                   "marcel_park_fielding": (True, "fitted", True, True, "marcel", "none"),
+                   "marcel_staff": (True, "fitted", True, True, "baseline", "absolute")}
 STAFF_OPTIMIZED = {"marcel_staff"}   # sources whose innings come from the staff optimizer
 MARCEL_ROSTERS = "steamer"   # whose preseason rosters and unsigned list Marcel is put on
 SPOTS = ["Rotation", "Bullpen", *lo.POSITIONS]      # rows of the position comparison

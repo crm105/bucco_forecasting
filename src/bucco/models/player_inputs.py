@@ -12,6 +12,7 @@ import duckdb
 import pandas as pd
 
 from bucco.config import DUCKDB_PATH
+from bucco.models import availability as avail
 from bucco.models import innings as inn
 from bucco.models import marcel
 from bucco.models.depth_chart_model import DepthChartModel, PlayerData
@@ -65,6 +66,7 @@ def external_def_rates(sources: tuple[str, ...] = FIELDING_SOURCES,
 @lru_cache(maxsize=4)
 def marcel_projections(aging: bool = False, prior: str = "league", park: bool = False,
                        fielding: bool = False, innings: str = "marcel",
+                       availability: str = "none",
                        path=DUCKDB_PATH) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Marcel projections (bucco.models.marcel) for every player with MLB history in the three
     seasons before each target season, on any team or none: (batters, pitchers). `aging`
@@ -74,7 +76,9 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
     replaces batters' positional-only Def with the mean of Steamer's and ZiPS's projected Def
     per PA (marcel.apply_external_def). `innings`: "marcel" (Marcel's playing-time formula)
     or "baseline" (bucco.models.innings, fitted on earlier seasons' rostered pitchers), which
-    also adds each season's start_penalty for the staff optimizer."""
+    also adds each season's start_penalty for the staff optimizer. `availability`: "none", or
+    scale the playing time of players on a preseason roster by their Opening Day 40-man status
+    (bucco.models.availability), "relative" to active 40-man players or "absolute"."""
     if not path.exists():
         raise RuntimeError(f"{path} not found. Run `bucco extract all` and `bucco build` first.")
     with duckdb.connect(str(path), read_only=True) as con:
@@ -109,7 +113,43 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
         pitchers["start_penalty"] = pitchers["season"].map(penalty)
     elif innings != "marcel":
         raise ValueError(f"innings must be 'marcel' or 'baseline', not {innings!r}")
+    if availability != "none":
+        if availability not in ("relative", "absolute"):
+            raise ValueError(f"availability must be 'none', 'relative' or 'absolute', "
+                             f"not {availability!r}")
+        with duckdb.connect(str(path), read_only=True) as con:
+            status = con.sql("select season, mlbam_id, il_group "
+                             "from marts.player_preseason_status").df()
+        roster = marcel_rosters(path=path)
+        relative = availability == "relative"
+        # what was delivered: 0 for a completed season he did not play, unknown for the upcoming
+        bat_real = bat_frame.assign(actual=bat_frame["target_pa"].fillna(0.0).where(
+            ~bat_frame["is_upcoming_season"].astype(bool)))
+        pit_real = pit_frame.assign(actual=(pit_frame["target_outs"] / 3.0).fillna(0.0).where(
+            ~pit_frame["is_upcoming_season"].astype(bool)))
+        f = _availability_factor(batters, "pa", bat_real, roster, "batter", status, relative)
+        for col in ("pa", "off_runs", "def_runs", "fld_runs", "bsr", "war"):
+            batters[col] = batters[col] * f
+        batters["availability"] = f
+        f = _availability_factor(pitchers, "ip", pit_real, roster, "pitcher", status, relative)
+        pitchers = marcel.rescale_innings(pitchers, pitchers["ip"] * f)
+        pitchers["availability"] = f
     return batters, pitchers
+
+
+def _availability_factor(proj: pd.DataFrame, volume: str, frame: pd.DataFrame,
+                         roster: pd.DataFrame, player_type: str, status: pd.DataFrame,
+                         relative: bool) -> pd.Series:
+    """Availability factor per projection row: fitted and applied only for players on a
+    preseason roster (others, such as unsigned free agents, get 1)."""
+    keys = roster.loc[roster["player_type"] == player_type, ["season", "mlbam_id"]]
+    rows = proj[["season", "mlbam_id", volume]].reset_index().merge(
+        keys.drop_duplicates(), on=["season", "mlbam_id"]).merge(
+        frame[["season", "mlbam_id", "actual"]].drop_duplicates(["season", "mlbam_id"]),
+        on=["season", "mlbam_id"], how="left").set_index("index")
+    groups = avail.status_groups(rows, status)
+    f = avail.availability(groups, rows[volume], rows["actual"], rows["season"], relative)
+    return pd.Series(1.0, index=proj.index).add(f - 1.0, fill_value=0.0)
 
 
 @lru_cache(maxsize=1)
@@ -170,7 +210,7 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
                      aging: bool = False, prior: str = "league", park: bool = False,
                      park_fit: bool = False, fielding: bool = False,
                      innings: str = "marcel", pitcher_playing_time: str = "depth_chart",
-                     path=DUCKDB_PATH) -> PlayerData:
+                     availability: str = "none", path=DUCKDB_PATH) -> PlayerData:
     """Our own Marcel projections on each team's preseason roster.
 
     Rosters are the team assignments in `roster_source`'s player files (players listed for
@@ -178,10 +218,12 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
     roster with no MLB history in the three prior seasons get no projection. Pitchers always go
     through the depth chart: Marcel lists every pitcher with his own innings. `park_fit` adds
     each batter's fit to his 2027 (target-season) park, centered on his team. `fielding`: see
-    `marcel_projections`. `innings` ("marcel" or "baseline") and `pitcher_playing_time`
+    `marcel_projections`, as is `availability`. `innings` ("marcel" or "baseline") and
+    `pitcher_playing_time`
     ("depth_chart" or "optimized": bucco.models.staff_optimizer) set how pitchers' innings are
     projected and shared out."""
-    batters, pitchers = marcel_projections(aging, prior, park, fielding, innings, path)
+    batters, pitchers = marcel_projections(aging, prior, park, fielding, innings,
+                                           availability, path=path)
     roster = marcel_rosters(roster_source, path)
     with duckdb.connect(str(path), read_only=True) as con:
         positions = con.sql("select season, mlbam_id, position, games "
@@ -245,10 +287,12 @@ def make_marcel_park_optimized_model() -> DepthChartModel:
 
 def make_marcel_staff_optimized_model() -> DepthChartModel:
     """Factory for the registry: `marcel_park_optimized` with baseline innings
-    (bucco.models.innings) shared out by the staff optimizer (bucco.models.staff_optimizer)."""
+    (bucco.models.innings) shared out by the staff optimizer (bucco.models.staff_optimizer), and
+    playing time scaled by Opening Day 40-man status (bucco.models.availability)."""
     return DepthChartModel(load_marcel_data("optimized", aging=True, prior="fitted", park=True,
                                             fielding=True, innings="baseline",
-                                            pitcher_playing_time="optimized"),
+                                            pitcher_playing_time="optimized",
+                                            availability="absolute"),
                            name="marcel_staff_optimized")
 
 
