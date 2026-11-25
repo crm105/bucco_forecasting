@@ -4,6 +4,9 @@
     bucco extract mlb-standings [--seasons 2024 2025] [--refresh]
     bucco extract mlb-positions [--seasons 2024 2025] [--refresh]
     bucco extract mlb-schedules [--seasons 2026 2027] [--refresh]
+    bucco extract mlb-player-stats [--seasons 2024 2025] [--refresh]
+    bucco extract mlb-park-splits [--seasons 2024 2025] [--refresh]
+    bucco extract mlb-player-splits [--seasons 2024 2025] [--refresh]
     bucco extract projections
     bucco extract player-projections
     bucco extract all
@@ -30,7 +33,15 @@ import pandas as pd
 from bucco import forecast
 from bucco.config import DATA_DIR, TRANSFORM_DIR
 from bucco.evaluate import backtest, leaderboard
-from bucco.extract import mlb_api, mlb_positions, player_projections, projections
+from bucco.extract import (
+    mlb_api,
+    mlb_park_splits,
+    mlb_player_splits,
+    mlb_player_stats,
+    mlb_positions,
+    player_projections,
+    projections,
+)
 from bucco.models import REGISTRY
 from bucco.report import data as report_data
 from bucco.report import outlook_data, outlook_render, render
@@ -47,6 +58,15 @@ def _extract(args: argparse.Namespace) -> None:
             seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
     if args.target in ("mlb-positions", "all"):
         mlb_positions.extract_positions(
+            seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
+    if args.target in ("mlb-player-stats", "all"):
+        mlb_player_stats.extract_player_stats(
+            seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
+    if args.target in ("mlb-park-splits", "all"):
+        mlb_park_splits.extract_park_splits(
+            seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
+    if args.target in ("mlb-player-splits", "all"):
+        mlb_player_splits.extract_player_splits(
             seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
     if args.target in ("projections", "all"):
         projections.extract_projections()
@@ -147,6 +167,21 @@ def main(argv: list[str] | None = None) -> None:
                                    help="who played where, one file per season (30 requests each)")
     positions.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
     positions.add_argument("--refresh", action="store_true", help="fetch again even if saved")
+    stats = targets.add_parser("mlb-player-stats",
+                               help="batting and pitching lines by player, team and season, "
+                                    "plus birth dates (one request per season)")
+    stats.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
+    stats.add_argument("--refresh", action="store_true", help="fetch again even if saved")
+    splits = targets.add_parser("mlb-park-splits",
+                                help="team batting and pitching at home and on the road, for "
+                                     "park factors (two requests per season)")
+    splits.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
+    splits.add_argument("--refresh", action="store_true", help="fetch again even if saved")
+    psplits = targets.add_parser("mlb-player-splits",
+                                 help="players' home/road and batter-side splits, for park "
+                                      "factors by side (three requests per season)")
+    psplits.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
+    psplits.add_argument("--refresh", action="store_true", help="fetch again even if saved")
     targets.add_parser("projections", help="check and save hand-collected projections")
     targets.add_parser("player-projections",
                        help="check and save hand-downloaded player projections (ZiPS etc.)")

@@ -50,6 +50,45 @@ sources:
           the PRIOR season's rows to give each player a listed position.
         output: data/cache/mlb_api/fielding/season=<year>.parquet
         feeds: stg_mlb__fielding
+      batting:
+        endpoint: /stats
+        params: {stats: season, group: "hitting,pitching", playerPool: ALL, sportId: 1, gameType: R}
+        note: >
+          One league-wide request per season returns batting and pitching: one row per player
+          with full-season counts, the last team and the number of teams. Not per team: that
+          query drops players who left a team mid-season. Checked for 30 teams, one row per
+          player, and league PA within 0.5% of league batters faced. Only completed seasons.
+        output: data/cache/mlb_api/batting/season=<year>.parquet
+        feeds: stg_mlb__batting
+      pitching:
+        note: Fetched with `batting` (same request). `outs` / 3 is innings pitched.
+        output: data/cache/mlb_api/pitching/season=<year>.parquet
+        feeds: stg_mlb__pitching
+      park_splits:
+        endpoint: /teams/stats
+        params: {stats: statSplits, sitCodes: "h or a", group: "hitting,pitching", sportId: 1, gameType: R}
+        note: >
+          Each team's batting and pitching lines in home games and in road games, two requests
+          per season. Checked for 30 teams per site and side and that home and road games add
+          up. The input to park_factors.
+        output: data/cache/mlb_api/park_splits/season=<year>.parquet
+        feeds: stg_mlb__park_splits
+      player_splits:
+        endpoint: /stats
+        params: {stats: statSplits, playerPool: ALL, sitCodes: "h,a / l,r (hitting); vl,vr (pitching)"}
+        note: >
+          Players' season lines at home and on the road, batting left and right, and (pitchers)
+          against left- and right-side batters; three league-wide requests per season. Checked
+          that each pair adds up to league PA. Feeds the side mix of each player and
+          park_factors_by_side.
+        output: data/cache/mlb_api/player_splits/season=<year>.parquet
+        feeds: stg_mlb__player_splits
+      people:
+        endpoint: /people
+        params: {personIds: "<up to 150 ids>", fields: "birthDate, batSide, pitchHand, primaryPosition, ..."}
+        note: Every player in the batting and pitching files. Only ids not yet saved are fetched.
+        output: data/cache/mlb_api/people.parquet
+        feeds: stg_mlb__people
 
   manual_projections:
     description: >

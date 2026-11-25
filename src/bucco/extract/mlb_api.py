@@ -148,15 +148,19 @@ def extract_standings(seasons: list[int] | None = None, refresh: bool = False) -
 # ---- schedules ---------------------------------------------------------------------------
 def fetch_schedule(season: int) -> pd.DataFrame:
     """Every regular-season game of one season as scheduled: one row per game (a postponed game
-    appears once, with its final status). Available before the season starts."""
+    appears once, with its final status), with the ballpark (venue) it was played or is
+    scheduled in. Available before the season starts."""
     params = {"sportId": 1, "season": season, "gameType": "R",
-              "fields": "dates,date,games,gamePk,teams,away,home,team,id,status,detailedState"}
+              "fields": "dates,date,games,gamePk,teams,away,home,team,id,status,detailedState,"
+                        "venue,name"}
     payload = get_json(f"{BASE_URL}/schedule", params=params)
     fetched_at = utc_now_iso()
     rows = [{"season": season, "game_pk": g["gamePk"], "game_date": d["date"],
              "home_team_id": g["teams"]["home"]["team"]["id"],
              "away_team_id": g["teams"]["away"]["team"]["id"],
-             "status": g["status"]["detailedState"], "fetched_at": fetched_at}
+             "status": g["status"]["detailedState"],
+             "venue_id": (g.get("venue") or {}).get("id"),
+             "venue_name": (g.get("venue") or {}).get("name"), "fetched_at": fetched_at}
             for d in payload.get("dates", []) for g in d["games"]]
     df = pd.DataFrame(rows)
     if df.empty:
