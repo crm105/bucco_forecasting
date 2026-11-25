@@ -322,3 +322,225 @@ models:
         data_tests:
           - dbt_utils.accepted_range:
               min_value: 1
+
+  - name: league_seasons
+    description: >
+      League run environment and value constants per season: league wOBA and its scale and
+      weights, runs per win, the FIP constant, and replacement runs per PA and per inning (set so
+      the league's WAR adds up to 1,000 per 2,430 games). Built from MLB Stats API counts; close
+      to FanGraphs' Guts table (2019: wOBA scale 1.167 vs 1.157, FIP constant 3.214 vs 3.214,
+      runs per win 10.30 vs 10.30).
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [unique, not_null]
+      - name: woba_scale
+        description: Multiplier that puts wOBA on the OBP scale.
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 1.05
+              max_value: 1.35
+      - name: fip_constant
+        description: League ERA minus league (13 HR + 3 (BB + HBP) - 2 K) / IP.
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 2.8
+              max_value: 3.6
+      - name: runs_per_win
+        description: 9 x league runs per inning x 1.5 + 3 (FanGraphs' formula).
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 8.5
+              max_value: 11.5
+
+  - name: player_batting_seasons
+    description: >
+      What each batter did, one row per player per season from 2000 (all teams combined): age,
+      position, counts, rate stats, and approximate runs and WAR on the FanGraphs scale (no park
+      adjustment, no fielding runs, stolen-base baserunning only). History for our own batter
+      projections; models read batter_projection_frame instead, so a forecast never sees its
+      own season.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: left_share
+        description: Share of his plate appearances batting left (1 = always left; switch hitters in between).
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+      - name: age
+        description: Baseball age, on June 30 of the season.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 17
+              max_value: 50
+      - name: is_pitcher
+        description: His main position that season was pitcher (two-way players are not).
+      - name: woba
+        description: Weighted on-base average with the season's weights (league_seasons).
+      - name: batting_runs
+        description: (wOBA - league wOBA) / wOBA scale x wOBA plate appearances.
+      - name: baserunning_runs
+        description: Stolen-base runs (FanGraphs' wSB).
+      - name: positional_runs
+        description: FanGraphs positional adjustment by innings at each position.
+      - name: off_runs
+        description: batting_runs + baserunning_runs, comparable to FanGraphs `Off`.
+      - name: def_runs
+        description: Positional adjustment only (no fielding runs), comparable to `Def` for an average fielder.
+      - name: war_approx
+        description: Approximate WAR. Close to FanGraphs for hitters; misses fielding value.
+
+  - name: player_pitching_seasons
+    description: >
+      What each pitcher did, one row per player per season from 2000 (all teams combined): age,
+      role, counts, rate stats, FIP and approximate FIP-based WAR (one replacement level for
+      starters and relievers, so starters come out a little low and relievers a little high).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: left_share
+        description: Share of the batters he faced who batted left.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 1
+      - name: age
+        description: Baseball age, on June 30 of the season.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 17
+              max_value: 50
+      - name: role
+        description: "`SP` if he started at least half the games he pitched, else `RP`."
+        data_tests:
+          - accepted_values:
+              values: ['SP', 'RP']
+      - name: fip
+        description: Fielding-independent pitching on the ERA scale.
+      - name: war_approx
+        description: Approximate FIP-based WAR.
+
+  - name: batter_projection_frame
+    description: >
+      Fitting and forecasting table for our own batter projections: one row per player per
+      target season, for players who batted in at least one of the three prior seasons.
+      Inputs `y1_*`, `y2_*`, `y3_*` are the three prior seasons (0 counts if he did not bat);
+      outcomes `target_*` are the target season (0 PA if he did not bat in a completed season,
+      null for the upcoming season). Rookies are not in it.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id]
+    columns:
+      - name: season
+        description: Target season (the one being forecast).
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: age
+        description: Baseball age in the target season.
+      - name: is_upcoming_season
+        description: True for the season after the last completed one; its target_ columns are null.
+
+  - name: pitcher_projection_frame
+    description: >
+      Fitting and forecasting table for our own pitcher projections, laid out like
+      batter_projection_frame (`y1_*` to `y3_*` inputs, `target_*` outcomes).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id]
+    columns:
+      - name: season
+        description: Target season (the one being forecast).
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: age
+        description: Baseball age in the target season.
+
+  - name: park_factors_by_side
+    description: >
+      Park factors for left-side (`L`) and right-side (`R`) batters: the park_factors value
+      times a shrunk difference between sides, measured from each team's own hitters at home
+      and on the road over up to six seasons at the same ballpark. The differences that survive
+      shrinkage are small (home runs: at most about 2%), since one team's hitters give little
+      data.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, team_id, side]
+    columns:
+      - name: side
+        description: "`L` or `R`."
+        data_tests:
+          - accepted_values:
+              values: ['L', 'R']
+      - name: pf_hr
+        description: Home run factor for this side.
+        data_tests:
+          - not_null
+
+  - name: park_factors
+    description: >
+      Park factors per team and season, by kind of event (singles, doubles, triples, home runs,
+      unintentional walks, hit batters, strikeouts, runs): rate in the team's home games over
+      rate in its road games, pooled over the season and up to two before it at the same
+      ballpark (never later seasons), shrunk toward 1 with settings from seasons up to 2011.
+      `pf_*` is the full home effect (a player gets about half); `raw_*` is the single season.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, team_id]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: team_id
+        description: '{{ doc("team_id") }}'
+        data_tests: [not_null]
+      - name: seasons_pooled
+        description: Seasons at this ballpark pooled into the factor (0 to 3).
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+              max_value: 3
+      - name: pf_runs
+        description: Runs park factor (full home effect).
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0.7
+              max_value: 1.5
+      - name: pf_hr
+        description: Home run park factor.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0.5
+              max_value: 2.0
+      - name: pf_triples
+        description: Triples park factor (the noisiest).
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              min_value: 0.3
+              max_value: 3.0

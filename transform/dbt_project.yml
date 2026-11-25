@@ -19,6 +19,14 @@ vars:
   full_season_min_games: 150
   # Days after the regular season ends before a season counts as complete.
   season_complete_buffer_days: 3
+  # Park factors (park_factors): seasons pooled (the season and the ones before it), the share
+  # of home games a season needs at the ballpark to count, and the last season used to set the
+  # shrinkage (before the first backtest season, 2012).
+  park_window: 3
+  park_min_venue_share: 0.75
+  park_prior_last_season: 2011
+  # Seasons pooled for the difference between left- and right-side hitters (park_factors_by_side).
+  park_side_window: 6
 
 models:
   bucco:

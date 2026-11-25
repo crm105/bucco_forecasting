@@ -51,7 +51,7 @@ So the room for improvement is small, and the testing has to be careful enough t
 
 - **MLB Stats API:** the season calendar and final standings for every team, 2000 to now. This is the source for the first steps (checked: 30 teams every season, team IDs stay the same through moves and renames)
 - **Public projections:** FanGraphs, ZiPS, Steamer, PECOTA, betting win totals. Collected by hand for now, since no free historical archive has been confirmed. See [data/manual/projections](data/manual/projections/README.md)
-- **Player history (later):** needed for the roster models. The Lahman database was the plan, but the GitHub repository it was downloaded from no longer exists, so the source still needs picking
+- **Player history:** every player's batting and pitching line since 2000, plus birth dates, from the MLB Stats API. The base for our own player projections (step 5b). See [docs/R&D/player_history.md](docs/R&D/player_history.md)
 - **Retrosheet and the Chadwick Bureau register:** game logs, schedules and a player ID crosswalk, for the later steps
 
 Data that can be downloaded again isn't stored in the repo. Instead, each source has a written description of how to fetch it. The exception is data that changes or disappears, such as preseason projections, betting lines and Opening Day rosters. Copies of those are kept so past forecasts can be reproduced.

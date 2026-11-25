@@ -235,3 +235,70 @@ models:
         data_tests: [not_null]
       - name: status
         description: Game status, e.g. `Final` or `Scheduled`.
+
+  - name: stg_mlb__batting
+    description: >
+      Batting lines from the MLB Stats API, typed. One row per player per season, full-season
+      totals across teams, plus `singles` (hits minus extra-base hits).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: last_team_id
+        description: MLB team id of the last team he played for that season.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('teams')
+              field: team_id
+      - name: singles
+        description: Hits minus doubles, triples and home runs.
+        data_tests:
+          - dbt_utils.accepted_range:
+              min_value: 0
+
+  - name: stg_mlb__pitching
+    description: >
+      Pitching lines from the MLB Stats API, typed. One row per player per season, full-season
+      totals across teams. `ip` is outs / 3.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: last_team_id
+        description: MLB team id of the last team he played for that season.
+        data_tests:
+          - not_null
+          - relationships:
+              to: ref('teams')
+              field: team_id
+
+  - name: stg_mlb__people
+    description: >
+      Player details from the MLB Stats API: birth date, bats, throws, primary position and
+      debut date. One row per player with a batting or pitching line since 2000.
+    columns:
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [unique, not_null]
+      - name: birth_date
+        description: Birth date. Used for age (on June 30 of the season).
+        data_tests: [not_null]
+
+  - name: stg_mlb__park_splits
+    description: Team lines in home and road games, typed, with singles and unintentional walks.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, team_id, site, side]

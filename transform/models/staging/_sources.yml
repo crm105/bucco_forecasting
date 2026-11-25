@@ -92,6 +92,10 @@ sources:
             description: MLB team id of the away team.
           - name: status
             description: Game status, e.g. `Final`, `Scheduled`, `Cancelled`.
+          - name: venue_id
+            description: MLB id of the ballpark the game was played (or is scheduled) in.
+          - name: venue_name
+            description: Ballpark name, e.g. `PNC Park`.
           - name: fetched_at
             description: UTC time the file was downloaded.
 
@@ -123,6 +127,88 @@ sources:
             description: Innings at the position (thirds as decimals, so 69.2 is 69.667).
           - name: fetched_at
             description: UTC time the file was downloaded.
+
+      - name: batting
+        description: >
+          Batting lines, one row per player per season, from 2000: full-season totals with the
+          team he finished with. Fetched league-wide (the per-team query drops players who left
+          a team mid-season). One Parquet file per season. Saved by
+          `bucco extract mlb-player-stats`, which checks 30 teams, one row per player and that
+          league plate appearances match league batters faced.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/batting/*.parquet')"
+        columns:
+          - name: season
+            description: Season year.
+          - name: mlbam_id
+            description: MLB Advanced Media player id.
+          - name: last_team_id
+            description: MLB team id of the last team he played for that season.
+          - name: num_teams
+            description: Number of teams he played for that season.
+          - name: pa
+            description: Plate appearances. The other count columns are named like `hr`, `bb`, `so`.
+
+      - name: pitching
+        description: >
+          Pitching lines, one row per player per season, from 2000, fetched and checked with
+          `batting`. `outs` is outs recorded (innings pitched = outs / 3).
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/pitching/*.parquet')"
+        columns:
+          - name: season
+            description: Season year.
+          - name: mlbam_id
+            description: MLB Advanced Media player id.
+          - name: outs
+            description: Outs recorded.
+          - name: bf
+            description: Batters faced.
+
+      - name: park_splits
+        description: >
+          Team batting and pitching lines in home games and in road games, one row per season,
+          team, site (`home`, `road`) and side (`batting`, `pitching`), from 2000. Saved by
+          `bucco extract mlb-park-splits`, which checks 30 teams per site and side and that
+          league PA at home while batting matches league PA on the road while pitching.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/park_splits/*.parquet')"
+        columns:
+          - name: site
+            description: "`home` or `road`."
+          - name: side
+            description: "`batting` (the team at bat) or `pitching` (its opponents at bat)."
+          - name: pa
+            description: Plate appearances in those games while that side batted.
+
+      - name: player_splits
+        description: >
+          Players' season lines split three ways, from 2000: batters at home and on the road
+          (`home`, `road`), batters batting left and right (`bat_left`, `bat_right`), and
+          pitchers against left- and right-side batters (`vs_left`, `vs_right`). One row per
+          player, group and split; a traded player's teams are combined. Saved by
+          `bucco extract mlb-player-splits`, which checks that each pair adds up to league PA.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/player_splits/*.parquet')"
+        columns:
+          - name: group
+            description: "`batting` or `pitching`."
+          - name: split
+            description: "`home`, `road`, `bat_left`, `bat_right`, `vs_left` or `vs_right`."
+          - name: pa
+            description: Plate appearances (batters faced for pitchers) in the split.
+
+      - name: people
+        description: >
+          One row per player in `batting` or `pitching`: birth date, bats, throws and primary
+          position from /people. Only new ids are fetched on each run.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/people.parquet')"
+        columns:
+          - name: mlbam_id
+            description: MLB Advanced Media player id.
+          - name: birth_date
+            description: Birth date (YYYY-MM-DD).
 
   - name: manual_projections
     description: >

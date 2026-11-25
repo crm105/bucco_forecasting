@@ -9,6 +9,8 @@ select
     cast(game_date as date)         as game_date,
     cast(home_team_id as integer)   as home_team_id,
     cast(away_team_id as integer)   as away_team_id,
-    status
+    status,
+    cast(venue_id as integer)       as venue_id,
+    venue_name
 from {{ source('mlb_api', 'schedules') }}
 where status <> 'Cancelled'
