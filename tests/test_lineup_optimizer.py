@@ -7,6 +7,7 @@ import pytest
 from bucco.models.depth_chart import POSITION_ADJ_RUNS, SLOT_PA
 from bucco.models.lineup_optimizer import (
     POSITIONS,
+    RELATIVE_FATIGUE_RUNS,
     SELECTION_BASE,
     TIE_BREAK,
     SwitchMatrix,
@@ -176,3 +177,27 @@ def test_catchers_and_dh_only_players_move_like_first_basemen():
         assert catcher[q] == pytest.approx(first[q])     # an average first baseman
         assert dh_only[q] < catcher[q]                    # a below-average one
     assert catcher["CF"] < _defense(POSITION_ADJ_RUNS["LF"], "LF", ("LF",))["CF"]
+
+
+# ---- relative fatigue --------------------------------------------------------------------
+def test_relative_rate_matches_the_projection_and_scales_with_projected_pa():
+    o = 10.0 / 600
+    assert offense_rate(o, 50.0, 50.0, relative=True) == pytest.approx(o)
+    # a player projected for 50 PA loses as much at 100 as one projected for 600 does at 1,200
+    assert offense_rate(o, 50.0, 100.0, relative=True) == \
+        pytest.approx(offense_rate(o, 600.0, 1200.0, relative=True))
+    steps = offense_segments(o, 50.0, relative=True)
+    assert np.all(np.diff(steps) <= 1e-12)
+
+
+def test_a_small_projection_holds_a_good_hitter_back_only_on_the_relative_curve():
+    prospect = _player(20, 20.0, 0.0, "SS", ("SS",), proj_pa=40)       # good, projected 40 PA
+    team = _team([prospect])
+
+    def his_pa(alloc):
+        return alloc.loc[alloc["mlbam_id"] == 20, "pa"].sum()
+
+    absolute = optimize_team(team, REP, RPW)
+    relative = optimize_team(team, REP, RPW, relative=True, fatigue=RELATIVE_FATIGUE_RUNS)
+    assert his_pa(absolute) > 300
+    assert his_pa(relative) < 150

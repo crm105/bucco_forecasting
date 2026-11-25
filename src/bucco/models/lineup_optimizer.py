@@ -45,6 +45,12 @@ FATIGUE_POWER = 2.0       # k: the loss grows as (PA / 600) ** k
 REST_BONUS = 0.5          # share of the better rate kept below the projected PA (0 = none)
 RESERVE_PA = 0.0          # PA per team held for players not on the preseason list
 SEGMENT_PA = 25.0         # step size of the fatigue curve in the linear program
+MIN_ANCHOR_PA = 10.0      # projected PA are floored here on the relative curve
+# The relative curve with its own c, for projections whose PA can be far below a full season
+# (our Marcel: rookies and players off the 40-man roster). PA error 113 -> 88 on Marcel's
+# batters, 2013-2026; see docs/R&D/lineup_optimizer.md.
+RELATIVE_FATIGUE_RUNS = 0.0075
+RELATIVE = {"relative": True, "fatigue": RELATIVE_FATIGUE_RUNS}
 MAX_PA = 700.0            # most PA any player can get
 TIE_BREAK = 0.05          # runs per 700 PA: prefer a player's own position when it's a tie
 NAMED_ADJ = {"C": 12.5, "SS": 7.5, "MID": 2.5, "COR": -7.5, "1B": -12.5, "DH": -17.5}
@@ -186,20 +192,29 @@ def natives_from_adjustment(adj700: float) -> tuple[str, ...]:
 
 
 def offense_rate(o_rate: float, proj_pa: float, x, fatigue: float = FATIGUE_RUNS,
-                 power: float = FATIGUE_POWER, rest_bonus: float = REST_BONUS):
+                 power: float = FATIGUE_POWER, rest_bonus: float = REST_BONUS,
+                 relative: bool = False):
     """Batting runs per PA at x PA in total: the projection's rate at its own PA, worse above it
     (the change growing as (x / 600) ** power) and better below it, by `rest_bonus` times as
-    much. The rate always falls as x rises, so total runs stay concave in x."""
-    change = (np.asarray(x) / 600.0) ** power - (proj_pa / 600.0) ** power
+    much. The rate always falls as x rises, so total runs stay concave in x.
+
+    relative: the change grows as (x / projected PA) ** power - 1 instead, as for pitchers
+    (bucco.models.staff_optimizer), so going past a small projection costs much more: a player
+    projected for 50 PA loses as much at 100 as one projected for 600 does at 1,200."""
+    if relative:
+        change = (np.asarray(x) / max(proj_pa, MIN_ANCHOR_PA)) ** power - 1.0
+    else:
+        change = (np.asarray(x) / 600.0) ** power - (proj_pa / 600.0) ** power
     return o_rate - fatigue * np.where(change > 0, change, rest_bonus * change)
 
 
 def offense_segments(o_rate: float, proj_pa: float, fatigue: float = FATIGUE_RUNS,
                      max_pa: float = MAX_PA, step: float = SEGMENT_PA,
-                     power: float = FATIGUE_POWER, rest_bonus: float = REST_BONUS) -> np.ndarray:
+                     power: float = FATIGUE_POWER, rest_bonus: float = REST_BONUS,
+                     relative: bool = False) -> np.ndarray:
     """Average batting runs per PA within each SEGMENT_PA step of playing time (decreasing)."""
     edges = np.arange(0.0, max_pa + step / 2, step)
-    total = edges * offense_rate(o_rate, proj_pa, edges, fatigue, power, rest_bonus)
+    total = edges * offense_rate(o_rate, proj_pa, edges, fatigue, power, rest_bonus, relative)
     return np.diff(total) / step
 
 
@@ -254,7 +269,7 @@ def optimize_team(players: pd.DataFrame, rep_runs: float, runs_per_win: float,
                   slot_pa: Mapping[str, float] = SLOT_PA, fatigue: float = FATIGUE_RUNS,
                   max_pa: float = MAX_PA, step: float = SEGMENT_PA,
                   power: float = FATIGUE_POWER, rest_bonus: float = REST_BONUS,
-                  reserve_pa: float = RESERVE_PA) -> pd.DataFrame:
+                  reserve_pa: float = RESERVE_PA, relative: bool = False) -> pd.DataFrame:
     """Best PA by player and position for one team. Returns one row per player-position with PA
     and WAR (replacement-level PA appear with mlbam_id = -1 and 0 WAR).
 
@@ -267,7 +282,7 @@ def optimize_team(players: pd.DataFrame, rep_runs: float, runs_per_win: float,
     x_index = [(i, q) for i in range(n) for q in POSITIONS
                if pd.notna(players.loc[i, f"def_{q}"])]
     segs = [offense_segments(players.loc[i, "o_rate"], players.loc[i, "proj_pa"], fatigue,
-                             max_pa, step, power, rest_bonus) for i in range(n)]
+                             max_pa, step, power, rest_bonus, relative) for i in range(n)]
     k = len(segs[0]) if n else 0
     nx, ns, nr = len(x_index), n * k, len(POSITIONS)
     # objective: maximize runs -> minimize the negative
@@ -321,7 +336,8 @@ def optimize_team(players: pd.DataFrame, rep_runs: float, runs_per_win: float,
             return 0.0
         p = by_id.loc[row.mlbam_id]
         x_all = total[row.mlbam_id]
-        rate = offense_rate(p["o_rate"], p["proj_pa"], x_all, fatigue, power, rest_bonus)
+        rate = offense_rate(p["o_rate"], p["proj_pa"], x_all, fatigue, power, rest_bonus,
+                            relative)
         return row.pa * (rate + rep_runs + p[f"def_{row.position}"] / 700.0)
 
     alloc["war"] = alloc.apply(runs, axis=1) / runs_per_win if len(alloc) else []
@@ -333,8 +349,11 @@ def optimize_league(batters: pd.DataFrame, positions: pd.DataFrame,
                     rest_bonus: float = REST_BONUS, reserve_pa: float = RESERVE_PA,
                     switch: SwitchMatrix | None = None, selection_base: float = SELECTION_BASE,
                     selection_up: float = SELECTION_UP, max_pa: float = MAX_PA,
-                    anchor_pa: float | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+                    anchor_pa: float | None = None,
+                    relative: bool = False) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Optimize every team in one season. Returns (allocations with team_id, player inputs).
+
+    relative: the fatigue curve relative to each player's projected PA (see `offense_rate`).
 
     anchor_pa: anchor every player's fatigue curve at this PA instead of his projected PA, so
     the projection's playing time has no say in the allocation."""
@@ -345,7 +364,8 @@ def optimize_league(batters: pd.DataFrame, positions: pd.DataFrame,
     out = []
     for team_id, group in inputs.groupby("team_id"):
         alloc = optimize_team(group, rep_runs, runs_per_win, fatigue=fatigue, power=power,
-                              rest_bonus=rest_bonus, reserve_pa=reserve_pa, max_pa=max_pa)
+                              rest_bonus=rest_bonus, reserve_pa=reserve_pa, max_pa=max_pa,
+                              relative=relative)
         alloc["team_id"] = team_id
         out.append(alloc)
     allocations = pd.concat(out, ignore_index=True)
