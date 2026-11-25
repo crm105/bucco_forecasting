@@ -86,14 +86,13 @@ now gets credit for its prospects, and the Padres' are few. Pirates 87.2 (6th).
 
 ## Limits and next
 
-- **Deep minor-leaguers get MLB playing time.** The lineup optimizer's fatigue curve is on an
-  absolute 600-PA scale (rate falls with (PA/600)²), so a small projected PA barely holds a
-  player back: Kerrington Cross (mostly Single-A, High-A) gets 275 PA for the 2027 Padres. A
-  curve relative to the projected PA, as for pitchers, would fix this and give availability its
-  full effect on batters.
+- **Deep minor-leaguers got MLB playing time** (Kerrington Cross, mostly Single-A and High-A:
+  275 PA for the 2027 Padres): the lineup optimizer's fatigue curve was on an absolute 600-PA
+  scale. Fixed with a curve relative to each batter's projected PA
+  ([lineup_optimizer.md](lineup_optimizer.md)).
 - Minor-league pitching, the same way.
 - Minor-league fielding positions for rookies not in Steamer's file.
 
 ## Status
 
-Adopted in `marcel_staff_optimized` (9.63; Steamer 9.50).
+Adopted in `marcel_staff_optimized` (9.63; Steamer 9.50), now with the relative batter fatigue curve.

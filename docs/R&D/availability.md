@@ -70,8 +70,9 @@ across eras, weak season by season.
 ## Status
 
 Adopted in `marcel_staff_optimized` (9.69; Steamer 9.50). With minor-league history added since: 9.63
-([milb.md](milb.md)). For batters the effect is weak: the lineup optimizer's fatigue curve is on
-an absolute 600-PA scale, so a lower projected PA barely limits a player (see milb.md).
+([milb.md](milb.md)). For batters the effect was weak while the lineup optimizer's fatigue curve
+was on an absolute 600-PA scale; it is now relative to the projected PA for this model
+([lineup_optimizer.md](lineup_optimizer.md)).
 
 ## Next
 

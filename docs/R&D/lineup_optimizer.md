@@ -263,3 +263,37 @@ placed at a new position.
 - Pitchers are not done yet (taken as Steamer projects them).
 - Rarely seen moves (C to anywhere but 1B) are rare in the optimizer too, so the rarity
   fit says nothing about their size; the adjustment floor and selection penalty set it.
+
+## Relative fatigue curve for our Marcel (2026-11-25)
+
+**Why.** The fatigue curve is on an absolute 600-PA scale: rate(x) = o − c((x/600)² − (PA/600)²).
+A player projected for very few PA is barely held back, so with our Marcel (which now projects
+rookies from minor-league history and scales players off the 40-man roster down to about a tenth
+of a season) the optimizer handed each team about 1,165 PA from players off its 40-man roster,
+against 406 in reality, and gave Kerrington Cross (mostly Single-A and High-A) 275 PA for the 2027
+Padres. It also meant Opening Day availability barely affected batters.
+
+**How.** Option `relative` (`offense_rate`, `optimize_team`, `optimize_league`): rate(x) = o −
+c((x/PA)² − 1), as for pitchers (bucco.models.staff_optimizer), with half the change below the
+projection as before. A player projected for 50 PA loses as much at 100 as one projected for 600
+does at 1,200. Only `marcel_staff_optimized` uses it (`load_marcel_data(relative_fatigue=True)`,
+`lineup_optimizer.RELATIVE`); the Steamer and ZiPS models keep the absolute curve they were
+calibrated on. The outlook and its free-agent re-optimizations use the model's setting.
+
+**Calibration** on Marcel's rostered batters (`marcel_staff_optimized` inputs), 2013–2026 without
+2020, allocated against real PA:
+
+| Curve | PA RMSE | Bias | PA a team to players off the 40-man (real 406) | 600+ PA seasons a year (real 74) | Wins RMSE |
+| --- | --- | --- | --- | --- | --- |
+| Absolute, c 0.015 (before) | 113.2 | +3.1 | 1,165 | 41 | 9.635 |
+| Relative, c 0.005 | 92.3 | −0.2 | 40 | 96 | 9.623 |
+| **Relative, c 0.0075 (kept)** | **87.8** | −3.0 | 35 | 67 | 9.633 |
+| Relative, c 0.01 | 86.1 | −5.6 | 37 | 46 | 9.650 |
+| Relative, c 0.02 | 86.6 | −12.0 | 42 | 8 | 9.670 |
+
+Wins are unchanged within noise (MAE 7.81 to 7.75); playing time is far closer to real. Time no
+listed player should get goes to replacement level: 510 to 590 PA a team in past seasons, 769 for
+2027 on November rosters (it should fall as rosters fill).
+
+**2027:** Cross 0 PA; the Padres' time goes to their regulars (66.8 to 69.7 wins; Steamer 74.9).
+Mean distance from Steamer's forecast 3.55 to 3.15 wins (correlation 0.79 to 0.82). Pirates 85.4.
