@@ -23,7 +23,7 @@ constants of the season before the target season, the last one known before Open
               replacement level for his mix of starts and relief (lower for starters)
 
 def_runs is the positional adjustment only (the history has no fielding runs), weighted like the
-rate but not regressed. Players with no MLB history in the three prior seasons (rookies) get no
+rate but not regressed; `apply_external_def` can add fielding from outside projections. Players with no MLB history in the three prior seasons (rookies) get no
 projection, which leaves their playing time to others or to replacement level.
 
 Everything here is read from the projection frames, whose inputs come only from seasons before
@@ -249,6 +249,29 @@ def project_pitchers(frame: pd.DataFrame, league: pd.DataFrame, reg_bf: float = 
            + (lg["sp_replacement_runs_per_ip"] - lg["rp_replacement_runs_per_ip"]) * start_share)
     out["war"] = (out["runs"] + rep.to_numpy() * ip) / lg["runs_per_win"].to_numpy()
     out["fip"] = lg["era"].to_numpy() - 9.0 * out["runs"] / ip
+    return out
+
+
+def apply_external_def(batters: pd.DataFrame, def_rates: pd.DataFrame,
+                       league: pd.DataFrame) -> pd.DataFrame:
+    """Replace each batter's Def rate (positional adjustment only: the history has no fielding
+    runs) with an outside projection's Def per PA (fielding + positional), where one exists.
+
+    def_rates: season, mlbam_id, def_rate (Def runs per PA, e.g. the mean of Steamer's and
+    ZiPS's for that season). The difference from the positional rate is credited as fielding
+    (fld_runs) and added to Def and WAR at the runs per win of the season before. Batters with
+    no outside rate keep their positional Def and get no fielding runs."""
+    out = batters.copy()
+    rate = out[["season", "mlbam_id"]].merge(
+        def_rates[["season", "mlbam_id", "def_rate"]], on=["season", "mlbam_id"],
+        how="left")["def_rate"].to_numpy()
+    pa = out["pa"].astype(float)
+    pos_rate = (out["def_runs"] / pa.where(pa > 0)).fillna(0.0)
+    fld = (pd.Series(rate, index=out.index) - pos_rate).fillna(0.0) * pa
+    rpw = _prior_league(out, league)["runs_per_win"].to_numpy()
+    out["fld_runs"] = fld
+    out["def_runs"] = out["def_runs"] + fld
+    out["war"] = out["war"] + fld / rpw
     return out
 
 

@@ -208,3 +208,23 @@ def test_a_team_without_park_factors_is_neutral():
     rows, profiles, parks, league = _fit_setup()
     runs = marcel.park_runs_per_pa(rows.assign(team_id=999), profiles, parks, league)
     assert list(runs) == [0.0, 0.0]
+
+
+def _projected(**over):
+    row = {"season": 2024, "mlbam_id": 1, "pa": 600.0, "def_runs": -6.0, "fld_runs": 0.0,
+           "war": 2.0}
+    return pd.DataFrame([row | over])
+
+
+def test_external_def_replaces_the_positional_rate_and_counts_the_rest_as_fielding():
+    rates = pd.DataFrame({"season": [2024], "mlbam_id": [1], "def_rate": [4.0 / 600]})
+    out = marcel.apply_external_def(_projected(), rates, LEAGUE).iloc[0]
+    assert out["def_runs"] == pytest.approx(4.0)
+    assert out["fld_runs"] == pytest.approx(10.0)
+    assert out["war"] == pytest.approx(2.0 + 10.0 / 10.0)    # runs per win of the season before
+
+
+def test_a_batter_without_an_external_def_keeps_his_own():
+    rates = pd.DataFrame({"season": [2023], "mlbam_id": [1], "def_rate": [0.05]})  # wrong season
+    out = marcel.apply_external_def(_projected(), rates, LEAGUE).iloc[0]
+    assert (out["def_runs"], out["fld_runs"], out["war"]) == (-6.0, 0.0, 2.0)

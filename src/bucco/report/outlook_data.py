@@ -41,11 +41,14 @@ DIVISIONS = {
 MODEL_SOURCE = {"steamer_optimized": "steamer", "steamer": "steamer", "depth_chart": "zips",
                 "marcel_optimized": "marcel", "marcel_aging_optimized": "marcel_aging",
                 "marcel_shrunk_optimized": "marcel_shrunk",
-                "marcel_park_optimized": "marcel_park"}
-# Marcel source -> (aging, what rates are shrunk toward, park-neutral), as in the models
-MARCEL_SETTINGS = {"marcel": (False, "league", False), "marcel_aging": (True, "league", False),
-                   "marcel_shrunk": (True, "fitted", False),
-                   "marcel_park": (True, "fitted", True)}
+                "marcel_park_optimized": "marcel_park_fielding"}
+# Marcel source -> (aging, what rates are shrunk toward, park-neutral, fielding from Steamer
+# and ZiPS), as in the models
+MARCEL_SETTINGS = {"marcel": (False, "league", False, False),
+                   "marcel_aging": (True, "league", False, False),
+                   "marcel_shrunk": (True, "fitted", False, False),
+                   "marcel_park": (True, "fitted", True, False),
+                   "marcel_park_fielding": (True, "fitted", True, True)}
 MARCEL_ROSTERS = "steamer"   # whose preseason rosters and unsigned list Marcel is put on
 SPOTS = ["Rotation", "Bullpen", *lo.POSITIONS]      # rows of the position comparison
 STRONG_RANK = 10          # a spot ranked this high or better is a strength

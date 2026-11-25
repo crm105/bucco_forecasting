@@ -168,6 +168,9 @@ source_labels:
   marcel_aging: "Our own Marcel (with aging)"
   marcel_shrunk: "Our own Marcel (aging, history-based shrinkage)"
   marcel_park: "Our own Marcel (aging, history-based shrinkage, park-adjusted)"
+  marcel_park_fielding: >-
+    Our own Marcel (aging, history-based shrinkage, park-adjusted; fielding from Steamer and
+    ZiPS)
 
 # Sentences that depend on where the projections come from. Each source needs all five:
 # pitching (positions intro), rate and pitchers (leaders note), division (division note),
@@ -196,3 +199,10 @@ source_notes:
   marcel_park:
     <<: *marcel
     rate: "wRC+ is approximate: projected park-neutral batting runs against the league"
+  marcel_park_fielding:
+    <<: *marcel
+    rate: "wRC+ is approximate: projected park-neutral batting runs against the league"
+    unsigned: >-
+      Players the Steamer file lists with no team are unsigned; every number here is our own
+      Marcel projection except fielding, which is the average of Steamer's and ZiPS's projected
+      defense (Steamer's alone where ZiPS has none).
