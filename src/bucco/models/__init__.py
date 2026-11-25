@@ -16,6 +16,7 @@ from bucco.models.player_inputs import (
     make_marcel_parkfit_optimized_model,
     make_marcel_shrunk_model,
     make_marcel_shrunk_optimized_model,
+    make_marcel_staff_optimized_model,
     make_steamer_model,
     make_steamer_optimized_model,
     make_zips_optimized_model,
@@ -41,6 +42,7 @@ REGISTRY = {
     "marcel_park_optimized": make_marcel_park_optimized_model,
     "marcel_parkfit": make_marcel_parkfit_model,
     "marcel_parkfit_optimized": make_marcel_parkfit_optimized_model,
+    "marcel_staff_optimized": make_marcel_staff_optimized_model,
 }
 
 __all__ = [
@@ -64,6 +66,7 @@ __all__ = [
     "make_marcel_parkfit_optimized_model",
     "make_marcel_shrunk_model",
     "make_marcel_shrunk_optimized_model",
+    "make_marcel_staff_optimized_model",
     "make_steamer_model",
     "make_steamer_optimized_model",
     "make_zips_optimized_model",

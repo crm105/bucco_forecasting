@@ -8,8 +8,9 @@ here from the database and the projection files, so the page can be rebuilt at a
 
 Batting comes from the lineup optimizer (every team fills the same PA at every position).
 Pitching is what the forecast uses: the projection as given for Steamer, and the depth chart's
-innings for our own Marcel projections (which list every pitcher with his own innings). For
-Marcel, rosters and the unsigned list come from the Steamer file; every number is Marcel's.
+innings for our own Marcel projections (which list every pitcher with his own innings), or the
+staff optimizer's for `marcel_staff_optimized`. For Marcel, rosters and the unsigned list come
+from the Steamer file; every number is Marcel's.
 """
 
 from __future__ import annotations
@@ -41,14 +42,17 @@ DIVISIONS = {
 MODEL_SOURCE = {"steamer_optimized": "steamer", "steamer": "steamer", "depth_chart": "zips",
                 "marcel_optimized": "marcel", "marcel_aging_optimized": "marcel_aging",
                 "marcel_shrunk_optimized": "marcel_shrunk",
-                "marcel_park_optimized": "marcel_park_fielding"}
+                "marcel_park_optimized": "marcel_park_fielding",
+                "marcel_staff_optimized": "marcel_staff"}
 # Marcel source -> (aging, what rates are shrunk toward, park-neutral, fielding from Steamer
-# and ZiPS), as in the models
-MARCEL_SETTINGS = {"marcel": (False, "league", False, False),
-                   "marcel_aging": (True, "league", False, False),
-                   "marcel_shrunk": (True, "fitted", False, False),
-                   "marcel_park": (True, "fitted", True, False),
-                   "marcel_park_fielding": (True, "fitted", True, True)}
+# and ZiPS, pitcher innings), as in the models
+MARCEL_SETTINGS = {"marcel": (False, "league", False, False, "marcel"),
+                   "marcel_aging": (True, "league", False, False, "marcel"),
+                   "marcel_shrunk": (True, "fitted", False, False, "marcel"),
+                   "marcel_park": (True, "fitted", True, False, "marcel"),
+                   "marcel_park_fielding": (True, "fitted", True, True, "marcel"),
+                   "marcel_staff": (True, "fitted", True, True, "baseline")}
+STAFF_OPTIMIZED = {"marcel_staff"}   # sources whose innings come from the staff optimizer
 MARCEL_ROSTERS = "steamer"   # whose preseason rosters and unsigned list Marcel is put on
 SPOTS = ["Rotation", "Bullpen", *lo.POSITIONS]      # rows of the position comparison
 STRONG_RANK = 10          # a spot ranked this high or better is a strength
@@ -316,12 +320,13 @@ def free_agent_pitchers(unsigned: pd.DataFrame, pitchers: pd.DataFrame, team_id:
 def marcel_rows(source: str, season: int, path=DUCKDB_PATH,
                 projections_dir: Path = INPUT_DIR) -> tuple[pd.DataFrame, ...]:
     """Our Marcel projections in the player_projections column names: (batters, pitchers,
-    unsigned batters, unsigned pitchers). Team pitchers carry the depth chart's innings and WAR,
-    as in the forecast; unsigned pitchers their own."""
+    unsigned batters, unsigned pitchers). Team pitchers carry the depth chart's (or, for
+    STAFF_OPTIMIZED sources, the staff optimizer's) innings and WAR, as in the forecast;
+    unsigned pitchers their own."""
     from bucco.models import depth_chart as dc
     from bucco.models.player_inputs import marcel_projections, marcel_rosters, on_rosters
 
-    bat_all, pit_all = marcel_projections(*MARCEL_SETTINGS[source], path)
+    bat_all, pit_all = marcel_projections(*MARCEL_SETTINGS[source], path=path)
     bat_all = bat_all[bat_all["season"] == season].rename(
         columns={"pa": "plate_appearances", "bsr": "bsr_runs"})
     pit_all = pit_all[pit_all["season"] == season]
@@ -329,10 +334,13 @@ def marcel_rows(source: str, season: int, path=DUCKDB_PATH,
     roster = roster[roster["season"] == season]
     batters = on_rosters(bat_all, roster, "batter")
     team_pit = on_rosters(pit_all, roster, "pitcher")
-    charts = [dc.build_pitcher_depth_chart(g) for _, g in team_pit.groupby("team_id")]
-    pitchers = pd.concat(charts, ignore_index=True) if charts else team_pit.iloc[0:0]
-    pitchers = pitchers[pitchers["allocated"] > 0].drop(columns=["ip", "war"]).rename(
-        columns={"allocated": "innings_pitched", "scaled_war": "war"})
+    if source in STAFF_OPTIMIZED:
+        pitchers = staff_rows(team_pit)
+    else:
+        charts = [dc.build_pitcher_depth_chart(g) for _, g in team_pit.groupby("team_id")]
+        pitchers = pd.concat(charts, ignore_index=True) if charts else team_pit.iloc[0:0]
+        pitchers = pitchers[pitchers["allocated"] > 0].drop(columns=["ip", "war"]).rename(
+            columns={"allocated": "innings_pitched", "scaled_war": "war"})
     pit_all = pit_all.rename(columns={"ip": "innings_pitched"})
 
     def unsigned(rows: pd.DataFrame, kind: str) -> pd.DataFrame:
@@ -342,6 +350,26 @@ def marcel_rows(source: str, season: int, path=DUCKDB_PATH,
         return rows[rows["mlbam_id"].isin(set(ids["mlbam_id"]))].reset_index(drop=True)
 
     return batters, pitchers, unsigned(bat_all, "batters"), unsigned(pit_all, "pitchers")
+
+
+def staff_rows(team_pit: pd.DataFrame) -> pd.DataFrame:
+    """Team pitchers with the staff optimizer's innings and WAR (as in the forecast), one row
+    per pitcher: role is the pool (SP rotation, RP relief) he throws most of his innings in."""
+    from bucco.models.staff_optimizer import optimize_staffs
+
+    ip = team_pit["ip"].astype(float)
+    alloc = optimize_staffs(team_pit.assign(rate=(team_pit["runs"] / ip.where(ip > 0)).fillna(0.0),
+                                            base_ip=ip))
+    alloc = alloc[alloc["mlbam_id"] >= 0]
+    by_pool = alloc.pivot_table(index=["team_id", "mlbam_id"], columns="pool", values="ip",
+                                aggfunc="sum").fillna(0.0)
+    totals = alloc.groupby(["team_id", "mlbam_id"])[["ip", "war"]].sum()
+    sp = by_pool.get("SP", 0.0)
+    rp = by_pool.get("RP", 0.0)
+    totals["role"] = np.where(sp >= rp, "SP", "RP")
+    totals = totals.reset_index().rename(columns={"ip": "innings_pitched"})
+    keep = team_pit.drop(columns=["ip", "war", "role"]).drop_duplicates(["team_id", "mlbam_id"])
+    return totals.merge(keep, on=["team_id", "mlbam_id"], how="left")
 
 
 def projection_rows(source: str, season: int, path=DUCKDB_PATH,

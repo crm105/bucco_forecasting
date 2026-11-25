@@ -60,8 +60,7 @@ positions_intro: >-
   spot, DH included. Our lineup optimizer decides who plays where on each team to get the most
   batting WAR. It allows for fatigue (hitters do a little worse the more they play) and for how a
   fielder's defense changes when he moves position, measured from Statcast. Time no rostered
-  player fills better than a replacement-level player goes to one, at 0 WAR. {pitching}; the
-  rotation is pitchers who start at least half their games.
+  player fills better than a replacement-level player goes to one, at 0 WAR. {pitching}.
 positions_chart_note: >-
   Each bar is the team's WAR at a spot minus the average team's. Green is above average, red is
   below, and the rank out of 30 is on the right.
@@ -171,13 +170,18 @@ source_labels:
   marcel_park_fielding: >-
     Our own Marcel (aging, history-based shrinkage, park-adjusted; fielding from Steamer and
     ZiPS)
+  marcel_staff: >-
+    Our own Marcel (aging, history-based shrinkage, park-adjusted; fielding from Steamer and
+    ZiPS; innings from our staff optimizer)
 
 # Sentences that depend on where the projections come from. Each source needs all five:
 # pitching (positions intro), rate and pitchers (leaders note), division (division note),
 # unsigned (free-agent intro) and list (free-agent caveat). No placeholders.
 source_notes:
   steamer: &public
-    pitching: "Pitching is the projection as given"
+    pitching: >-
+      Pitching is the projection as given; the rotation is pitchers who start at least half
+      their games
     rate: "wRC+ is the projection's rate"
     pitchers: "the projection, which the forecast uses as is"
     division: "pitching as projected"
@@ -186,7 +190,8 @@ source_notes:
   zips: *public
   marcel: &marcel
     pitching: >-
-      Pitching is our depth chart's share of each team's innings, the same as the forecast uses
+      Pitching is our depth chart's share of each team's innings, the same as the forecast uses;
+      the rotation is pitchers who start at least half their games
     rate: "wRC+ is approximate: projected batting runs against the league, no park adjustment"
     pitchers: "innings and WAR after the depth chart shares out the team's innings"
     division: "pitching from the depth chart"
@@ -206,3 +211,19 @@ source_notes:
       Players the Steamer file lists with no team are unsigned; every number here is our own
       Marcel projection except fielding, which is the average of Steamer's and ZiPS's projected
       defense (Steamer's alone where ZiPS has none).
+  marcel_staff:
+    <<: *marcel
+    pitching: >-
+      Pitching is our staff optimizer's share of each team's innings, the same as the forecast
+      uses. Swingmen (at least a tenth of their games started) can pitch in the rotation or the
+      bullpen, and each pitcher is counted in the one he throws most of his innings in
+    rate: "wRC+ is approximate: projected park-neutral batting runs against the league"
+    pitchers: >-
+      innings and WAR after the staff optimizer shares out the team's innings; each pitcher is
+      listed in the role he throws most of his innings in
+    division: "pitching from the staff optimizer"
+    unsigned: >-
+      Players the Steamer file lists with no team are unsigned; every number here is our own
+      Marcel projection except fielding, which is the average of Steamer's and ZiPS's projected
+      defense (Steamer's alone where ZiPS has none). Unsigned pitchers are shown at their own
+      baseline innings.

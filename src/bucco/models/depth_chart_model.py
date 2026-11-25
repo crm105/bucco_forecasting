@@ -72,7 +72,9 @@ class PlayerData:
     optimizer_options: keyword arguments for `lineup_optimizer.optimize_league` in `optimized`
     mode (e.g. anchor_pa).
     pitcher_playing_time: "depth_chart" always shares pitchers' innings out with the depth chart
-    (for a source that lists every pitcher with his own innings); default: as for batters.
+    (for a source that lists every pitcher with his own innings); "optimized" with the staff
+    optimizer (bucco.models.staff_optimizer; needs Marcel's pitcher columns); default: as for
+    batters. staff_options: keyword arguments for `staff_optimizer.optimize_staffs`.
     """
 
     def __init__(self, batters: pd.DataFrame, pitchers: pd.DataFrame,
@@ -80,7 +82,8 @@ class PlayerData:
                  playing_time: str = "depth_chart",
                  matchups: pd.DataFrame | None = None,
                  optimizer_options: dict | None = None,
-                 pitcher_playing_time: str | None = None) -> None:
+                 pitcher_playing_time: str | None = None,
+                 staff_options: dict | None = None) -> None:
         if playing_time not in PLAYING_TIME:
             raise ValueError(f"playing_time must be one of {PLAYING_TIME}, not {playing_time!r}")
         self.source = source
@@ -90,6 +93,7 @@ class PlayerData:
         self.pitchers = pitchers.copy()
         self.positions = positions
         self.optimizer_options = dict(optimizer_options or {})
+        self.staff_options = dict(staff_options or {})
         self.matchups = (matchups if matchups is not None
                          else pd.DataFrame(columns=["season", "team_id", "opponent_id", "games"]))
         for frame in (self.batters, self.pitchers):
@@ -129,7 +133,9 @@ class PlayerData:
             batters["bsr_pct"] = dc.bsr_percentiles(batters)
             pool = dc.build_batter_pool(batters, self.positions[self.positions["season"] == season])
             bat = dc.depth_chart_by_team(pool, group="team_id").groupby("team_id")["scaled_war"].sum()
-        if self.pitcher_playing_time != "depth_chart" and \
+        if self.pitcher_playing_time == "optimized":
+            pit = self._optimized_pitching(pitchers)
+        elif self.pitcher_playing_time != "depth_chart" and \
                 self._as_given(pitchers, "ip", RAW_LIST_IP, season):
             pit = pitchers.groupby("team_id")["war"].sum()
         else:
@@ -147,6 +153,17 @@ class PlayerData:
             rows["fld_runs"] = np.nan
         allocations, _ = optimize_league(rows, self.positions[self.positions["season"] == season],
                                          **self.optimizer_options)
+        return allocations.groupby("team_id")["war"].sum()
+
+    def _optimized_pitching(self, pitchers: pd.DataFrame) -> pd.Series:
+        """Pitching WAR per team with innings shared out by the staff optimizer (needs runs,
+        ip, age, start_share and the league constants of bucco.models.marcel's pitchers)."""
+        from bucco.models.staff_optimizer import optimize_staffs
+
+        ip = pitchers["ip"].astype(float)
+        rows = pitchers.assign(rate=(pitchers["runs"] / ip.where(ip > 0)).fillna(0.0),
+                               base_ip=ip)
+        allocations = optimize_staffs(rows, **self.staff_options)
         return allocations.groupby("team_id")["war"].sum()
 
     def _as_given(self, rows: pd.DataFrame, volume: str, raw_list: float, season: int) -> bool:

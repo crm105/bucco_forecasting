@@ -209,8 +209,9 @@ def project_pitchers(frame: pd.DataFrame, league: pd.DataFrame, reg_bf: float = 
     `prior`: as for batters ("replacement" is replacement-level runs per batter faced).
 
     Returns season, mlbam_id, player_name, age, last_team_id, role (SP if he started at least
-    half his weighted games), ip, gs, bf, runs (FIP-based runs above average), war and fip (on
-    the ERA scale of the season before)."""
+    half his weighted games), ip, gs, bf, runs (FIP-based runs above average), war, fip (on
+    the ERA scale of the season before), start_share and the season-before constants
+    sp_rep_per_ip, rp_rep_per_ip and runs_per_win."""
     f = frame.reset_index(drop=True)
     w_bf = sum(w * f[f"y{k}_bf"] for k, w in enumerate(weights, start=1))
     runs_col = "pitching_runs_neutral" if park else "pitching_runs"
@@ -249,6 +250,24 @@ def project_pitchers(frame: pd.DataFrame, league: pd.DataFrame, reg_bf: float = 
            + (lg["sp_replacement_runs_per_ip"] - lg["rp_replacement_runs_per_ip"]) * start_share)
     out["war"] = (out["runs"] + rep.to_numpy() * ip) / lg["runs_per_win"].to_numpy()
     out["fip"] = lg["era"].to_numpy() - 9.0 * out["runs"] / ip
+    out["start_share"] = start_share
+    out["sp_rep_per_ip"] = lg["sp_replacement_runs_per_ip"].to_numpy()
+    out["rp_rep_per_ip"] = lg["rp_replacement_runs_per_ip"].to_numpy()
+    out["runs_per_win"] = lg["runs_per_win"].to_numpy()
+    return out
+
+
+def rescale_innings(pitchers: pd.DataFrame, new_ip: pd.Series) -> pd.DataFrame:
+    """Pitcher projections at other innings (e.g. baseline innings): ip, gs, bf, runs and war
+    scaled with the innings, so the rates stay the same. Rows where new_ip is missing keep
+    theirs."""
+    out = pitchers.copy()
+    ip = out["ip"].astype(float)
+    target = pd.Series(np.asarray(new_ip, dtype=float), index=out.index).fillna(ip)
+    scale = (target / ip.where(ip > 0)).fillna(1.0)
+    for col in ("gs", "bf", "runs", "war"):
+        out[col] = out[col] * scale
+    out["ip"] = target
     return out
 
 

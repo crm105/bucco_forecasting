@@ -12,6 +12,7 @@ import duckdb
 import pandas as pd
 
 from bucco.config import DUCKDB_PATH
+from bucco.models import innings as inn
 from bucco.models import marcel
 from bucco.models.depth_chart_model import DepthChartModel, PlayerData
 
@@ -63,7 +64,7 @@ def external_def_rates(sources: tuple[str, ...] = FIELDING_SOURCES,
 
 @lru_cache(maxsize=4)
 def marcel_projections(aging: bool = False, prior: str = "league", park: bool = False,
-                       fielding: bool = False,
+                       fielding: bool = False, innings: str = "marcel",
                        path=DUCKDB_PATH) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Marcel projections (bucco.models.marcel) for every player with MLB history in the three
     seasons before each target season, on any team or none: (batters, pitchers). `aging`
@@ -71,7 +72,9 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
     rates are shrunk toward (marcel.PRIORS; "fitted" depends on how much history a player has).
     `park` projects from park-neutral history (and fits the age curves on it). `fielding`
     replaces batters' positional-only Def with the mean of Steamer's and ZiPS's projected Def
-    per PA (marcel.apply_external_def)."""
+    per PA (marcel.apply_external_def). `innings`: "marcel" (Marcel's playing-time formula)
+    or "baseline" (bucco.models.innings, fitted on earlier seasons' rostered pitchers), which
+    also adds each season's start_penalty for the staff optimizer."""
     if not path.exists():
         raise RuntimeError(f"{path} not found. Run `bucco extract all` and `bucco build` first.")
     with duckdb.connect(str(path), read_only=True) as con:
@@ -80,7 +83,7 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
         pit_frame = con.sql("select * from marts.pitcher_projection_frame").df()
         bat_history = con.sql("select season, mlbam_id, age, off_runs, off_runs_neutral, pa "
                               "from marts.player_batting_seasons where not is_pitcher").df()
-        pit_history = con.sql("select season, mlbam_id, age, pitching_runs, "
+        pit_history = con.sql("select season, mlbam_id, age, games, gs, outs, pitching_runs, "
                               "pitching_runs_neutral, bf from marts.player_pitching_seasons").df()
     off_col = "off_runs_neutral" if park else "off_runs"
     runs_col = "pitching_runs_neutral" if park else "pitching_runs"
@@ -92,8 +95,21 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
                                      park=park)
     if fielding:
         batters = marcel.apply_external_def(batters, external_def_rates(path=path), league)
-    return batters, marcel.project_pitchers(pit_frame, league, curves=pit_curves, prior=prior,
-                                            park=park)
+    pit_frame = pit_frame.reset_index(drop=True)
+    pitchers = marcel.project_pitchers(pit_frame, league, curves=pit_curves, prior=prior,
+                                       park=park)
+    if innings == "baseline":
+        roster = marcel_rosters(path=path)
+        keys = set(zip(roster.loc[roster["player_type"] == "pitcher", "season"],
+                       roster.loc[roster["player_type"] == "pitcher", "mlbam_id"], strict=True))
+        rostered = pd.Series([k in keys for k in zip(pit_frame["season"], pit_frame["mlbam_id"],
+                                                      strict=True)])
+        pitchers = marcel.rescale_innings(pitchers, inn.baseline_ip(pit_frame, rostered).to_numpy())
+        penalty = inn.start_penalties(pit_history, runs_col, pitchers["season"])
+        pitchers["start_penalty"] = pitchers["season"].map(penalty)
+    elif innings != "marcel":
+        raise ValueError(f"innings must be 'marcel' or 'baseline', not {innings!r}")
+    return batters, pitchers
 
 
 @lru_cache(maxsize=1)
@@ -153,6 +169,7 @@ def on_rosters(projections: pd.DataFrame, roster: pd.DataFrame, player_type: str
 def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "steamer",
                      aging: bool = False, prior: str = "league", park: bool = False,
                      park_fit: bool = False, fielding: bool = False,
+                     innings: str = "marcel", pitcher_playing_time: str = "depth_chart",
                      path=DUCKDB_PATH) -> PlayerData:
     """Our own Marcel projections on each team's preseason roster.
 
@@ -161,8 +178,10 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
     roster with no MLB history in the three prior seasons get no projection. Pitchers always go
     through the depth chart: Marcel lists every pitcher with his own innings. `park_fit` adds
     each batter's fit to his 2027 (target-season) park, centered on his team. `fielding`: see
-    `marcel_projections`."""
-    batters, pitchers = marcel_projections(aging, prior, park, fielding, path)
+    `marcel_projections`. `innings` ("marcel" or "baseline") and `pitcher_playing_time`
+    ("depth_chart" or "optimized": bucco.models.staff_optimizer) set how pitchers' innings are
+    projected and shared out."""
+    batters, pitchers = marcel_projections(aging, prior, park, fielding, innings, path)
     roster = marcel_rosters(roster_source, path)
     with duckdb.connect(str(path), read_only=True) as con:
         positions = con.sql("select season, mlbam_id, position, games "
@@ -174,7 +193,7 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
         batters = with_park_fit(batters, path=path)
     return PlayerData(batters, on_rosters(pitchers, roster, "pitcher"),
                       positions, source="Marcel", playing_time=playing_time,
-                      matchups=matchups, pitcher_playing_time="depth_chart")
+                      matchups=matchups, pitcher_playing_time=pitcher_playing_time)
 
 
 def make_marcel_model() -> DepthChartModel:
@@ -222,6 +241,15 @@ def make_marcel_park_optimized_model() -> DepthChartModel:
     fielding borrowed from Steamer's and ZiPS's projected Def."""
     return DepthChartModel(load_marcel_data("optimized", aging=True, prior="fitted", park=True,
                                             fielding=True), name="marcel_park_optimized")
+
+
+def make_marcel_staff_optimized_model() -> DepthChartModel:
+    """Factory for the registry: `marcel_park_optimized` with baseline innings
+    (bucco.models.innings) shared out by the staff optimizer (bucco.models.staff_optimizer)."""
+    return DepthChartModel(load_marcel_data("optimized", aging=True, prior="fitted", park=True,
+                                            fielding=True, innings="baseline",
+                                            pitcher_playing_time="optimized"),
+                           name="marcel_staff_optimized")
 
 
 def make_marcel_parkfit_model() -> DepthChartModel:
