@@ -8,6 +8,7 @@
     bucco extract mlb-park-splits [--seasons 2024 2025] [--refresh]
     bucco extract mlb-player-splits [--seasons 2024 2025] [--refresh]
     bucco extract mlb-rosters [--seasons 2024 2025] [--refresh]
+    bucco extract mlb-minor-batting [--seasons 2024 2025] [--refresh]
     bucco extract projections
     bucco extract player-projections
     bucco extract all
@@ -36,6 +37,7 @@ from bucco.config import DATA_DIR, TRANSFORM_DIR
 from bucco.evaluate import backtest, leaderboard
 from bucco.extract import (
     mlb_api,
+    mlb_minor_stats,
     mlb_park_splits,
     mlb_player_splits,
     mlb_player_stats,
@@ -72,6 +74,9 @@ def _extract(args: argparse.Namespace) -> None:
             seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
     if args.target in ("mlb-rosters", "all"):
         mlb_rosters.extract_rosters(
+            seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
+    if args.target in ("mlb-minor-batting", "all"):
+        mlb_minor_stats.extract_minor_batting(
             seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
     if args.target in ("projections", "all"):
         projections.extract_projections()
@@ -192,6 +197,11 @@ def main(argv: list[str] | None = None) -> None:
                                       "Opening Day (30 requests per season)")
     rosters.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
     rosters.add_argument("--refresh", action="store_true", help="fetch again even if saved")
+    minor = targets.add_parser("mlb-minor-batting",
+                               help="minor-league batting, Triple-A to Single-A, by player, "
+                                    "level and season (four requests per season)")
+    minor.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
+    minor.add_argument("--refresh", action="store_true", help="fetch again even if saved")
     targets.add_parser("projections", help="check and save hand-collected projections")
     targets.add_parser("player-projections",
                        help="check and save hand-downloaded player projections (ZiPS etc.)")
