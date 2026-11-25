@@ -213,18 +213,56 @@ Pieces of the 0.40-win gap (RMSE is not additive, so ranges):
 Script: run from the scratchpad (not in the repo), using `load_player_data("steamer")` and
 `marcel_projections(True, "fitted", True)`.
 
+## Fielding borrowed from Steamer and ZiPS (2026-11-25)
+
+**Why.** Marcel's Def is the positional adjustment only: our history has no fielding runs. How
+much does that cost?
+
+**How.** Each batter's Def rate is replaced by the mean of Steamer's and ZiPS's projected Def per
+PA (fielding + positional) for the target season, over whichever of the two lists him; the
+difference from his positional rate is credited as fielding runs (`marcel.apply_external_def`,
+`player_inputs.external_def_rates`). Batters neither lists keep their own Def. Both files are
+made before Opening Day. Applied to `marcel_park_optimized` only.
+
+**Teams** (RMSE in wins, 2012-2026 without 2020; seasons better than positional only):
+
+| Def | `marcel_park` | `marcel_park_optimized` | Better (optimized) |
+| --- | --- | --- | --- |
+| Positional only | 9.905 | 9.912 | |
+| Steamer | 9.913 | 9.869 | 9 of 14 |
+| ZiPS | **9.828** | **9.808** | 11 of 14 (t -2.0) |
+| Mean of Steamer and ZiPS (adopted) | 9.850 | **9.809** | 11 of 14 (t -1.9) |
+| `steamer` / with its own fielding removed | 9.501 / 9.556 | | |
+
+- Defense is worth 0.05 to 0.10 wins of the 0.40-win gap to Steamer, less than playing time or
+  rates (see the diagnostic above). Steamer loses 0.055 when its fielding is removed (worse in
+  12 of 14 seasons).
+- Steamer's Def alone barely helps Marcel; ZiPS's or the mean does. Untested guess: Steamer's
+  Def follows the positions it projects, which can disagree with Marcel's position history.
+- "Fielding" here is the outside Def minus our positional rate, so it includes disagreements
+  about position, not only about glove.
+- **2027 caveat:** there are no ZiPS 2027 files yet, so the 2027 forecast uses Steamer's Def
+  alone, the weaker variant. Rerun once ZiPS 2027 is out.
+
+**2027 Pirates** (`marcel_park_optimized`): 84.5 to 83.7 wins, still 7th. Lineup 17th to 18th;
+defense (fielding + positional) 20th to 30th, as Steamer rates most of their regulars below
+average in the field (Reynolds, Horwitz, O'Hearn, Gonzales, Mangum, Valdez: -2.5 to -4 runs per
+600 PA). Biggest team moves: MIN -2.5, CHC +1.6, STL +1.5, CLE +1.5.
+
 ## Next
 
-1. Pitchers: by component (K, BB, HR), with separate starter and reliever replacement levels.
+1. Fielding of our own (FanGraphs Fld or Statcast OAA in the history), to replace the borrowed
+   Def.
+2. Pitchers: by component (K, BB, HR), with separate starter and reliever replacement levels.
    This is now the biggest player-level gap (FIP RMSE 0.739 vs Steamer's 0.694).
-2. Rookies with no MLB history at all still get no projection (the fitted target covers players
+3. Rookies with no MLB history at all still get no projection (the fitted target covers players
    with some history). Minor-league data would help both them and young players like Valdez.
-3. Playing time beyond the Marcel formula, then a second look at the optimizer.
-4. Where the 2027 Pirates gap to Steamer comes from (batting depth and playing time).
+4. Playing time beyond the Marcel formula, then a second look at the optimizer.
+5. Where the 2027 Pirates gap to Steamer comes from (batting depth and playing time).
 
 ## Status
 
 Registered (`marcel`, `marcel_optimized`, `marcel_aging`, `marcel_aging_optimized`) and
 backtested, plus `marcel_shrunk`, `marcel_shrunk_optimized`, `marcel_park` and
-`marcel_park_optimized`. The park models are our best own-projection models (9.89). Not adopted: Steamer stays the
+`marcel_park_optimized`. `marcel_park_optimized`, with fielding from Steamer and ZiPS, is our best own-projection model (9.81). Not adopted: Steamer stays the
 model of record.
