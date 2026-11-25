@@ -152,21 +152,31 @@ def _prior_league(frame: pd.DataFrame, league: pd.DataFrame) -> pd.DataFrame:
 def project_batters(frame: pd.DataFrame, league: pd.DataFrame, reg_pa: float = REG_PA,
                     weights: tuple[float, ...] = BATTER_WEIGHTS,
                     curves: dict[int, pd.Series] | None = None,
-                    prior: str = "league", park: bool = False) -> pd.DataFrame:
+                    prior: str = "league", park: bool = False,
+                    milb_weight: float = 0.0) -> pd.DataFrame:
     """Marcel batter projections from batter_projection_frame rows (pitchers' batting dropped).
+    `milb_weight`: with y1-y3_milb_pa and y1-y3_milb_runs in the frame (major-league equivalents,
+    bucco.models.milb), each minor-league season joins the weighted history like an MLB season,
+    its PA counted at this weight (0: none).
     `park`: project from park-neutral Off (`off_runs_neutral`) instead of Off as played.
     `curves`: aging curves of off_runs per PA by target season (`age_curves`), or None.
     `prior`: what the rate is shrunk toward: "league" (average), "replacement" (Off + Def at
     replacement level) or "fitted" (`fitted_prior_means`, by how much history he has).
 
     Returns season, mlbam_id, player_name, age, last_team_id, pa, off_runs, def_runs, fld_runs,
-    bsr, war and wrc_plus (approximate: 100 x (1 + batting runs per PA / league runs per PA), no
+    bsr, has_position (any MLB positional history), war and wrc_plus (approximate: 100 x (1 + batting runs per PA / league runs per PA), no
     park adjustment)."""
     f = frame[~frame["is_pitcher"].fillna(False).astype(bool)].reset_index(drop=True)
     w_pa = sum(w * f[f"y{k}_pa"] for k, w in enumerate(weights, start=1))
     off_col = "off_runs_neutral" if park else "off_runs"
     off = sum(w * (f[f"y{k}_{off_col}"].fillna(0.0) + f[f"y{k}_pa"] * _aging(f, curves, k))
               for k, w in enumerate(weights, start=1))
+    if milb_weight and "y1_milb_pa" in f:
+        for k, w in enumerate(weights, start=1):
+            m_pa = f[f"y{k}_milb_pa"].fillna(0.0)
+            w_pa = w_pa + w * milb_weight * m_pa
+            off = off + w * milb_weight * (f[f"y{k}_milb_runs"].fillna(0.0)
+                                           + m_pa * _aging(f, curves, k))
     bsr = sum(w * f[f"y{k}_baserunning_runs"].fillna(0.0) for k, w in enumerate(weights, 1))
     pos = sum(w * f[f"y{k}_positional_runs"].fillna(0.0) for k, w in enumerate(weights, 1))
     pos_pa = sum(w * f[f"y{k}_pa"].where(f[f"y{k}_positional_runs"].notna(), 0.0)
@@ -192,7 +202,7 @@ def project_batters(frame: pd.DataFrame, league: pd.DataFrame, reg_pa: float = R
         "season": f["season"], "mlbam_id": f["mlbam_id"], "player_name": f["player_name"],
         "age": f["age"], "last_team_id": f["last_team_id"], "pa": pa,
         "off_runs": off_rate * pa, "def_runs": def_rate * pa, "fld_runs": 0.0,
-        "bsr": bsr_rate * pa,
+        "bsr": bsr_rate * pa, "has_position": (pos_pa > 0).to_numpy(),
     })
     out["war"] = (out["off_runs"] + out["def_runs"] + rep * pa) / rpw
     out["wrc_plus"] = 100.0 * (1.0 + (off_rate - bsr_rate) / lg["runs_per_pa"].to_numpy())
@@ -279,7 +289,10 @@ def apply_external_def(batters: pd.DataFrame, def_rates: pd.DataFrame,
     def_rates: season, mlbam_id, def_rate (Def runs per PA, e.g. the mean of Steamer's and
     ZiPS's for that season). The difference from the positional rate is credited as fielding
     (fld_runs) and added to Def and WAR at the runs per win of the season before. Batters with
-    no outside rate keep their positional Def and get no fielding runs."""
+    no outside rate keep their positional Def and get no fielding runs. A batter with no MLB
+    positional history (`has_position` false) has no positional rate to split it from, so his
+    fld_runs are left unknown and the lineup optimizer reads his position from the whole Def, as
+    it does for an outside projection's players with no MLB games."""
     out = batters.copy()
     rate = out[["season", "mlbam_id"]].merge(
         def_rates[["season", "mlbam_id", "def_rate"]], on=["season", "mlbam_id"],
@@ -289,6 +302,8 @@ def apply_external_def(batters: pd.DataFrame, def_rates: pd.DataFrame,
     fld = (pd.Series(rate, index=out.index) - pos_rate).fillna(0.0) * pa
     rpw = _prior_league(out, league)["runs_per_win"].to_numpy()
     out["fld_runs"] = fld
+    if "has_position" in out:
+        out["fld_runs"] = fld.where(out["has_position"].astype(bool))
     out["def_runs"] = out["def_runs"] + fld
     out["war"] = out["war"] + fld / rpw
     return out
