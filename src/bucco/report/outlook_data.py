@@ -56,6 +56,8 @@ MARCEL_SETTINGS = {"marcel": (False, "league", False, False, "marcel", *_NONE),
                    "marcel_staff": (True, "fitted", True, True, "baseline", "absolute", 0.5,
                                     True)}
 STAFF_OPTIMIZED = {"marcel_staff"}   # sources whose innings come from the staff optimizer
+# lineup optimizer settings by source, as in the models (default: the absolute curve)
+OPTIMIZER_OPTIONS = {"marcel_staff": lo.RELATIVE}
 MARCEL_ROSTERS = "steamer"   # whose preseason rosters and unsigned list Marcel is put on
 SPOTS = ["Rotation", "Bullpen", *lo.POSITIONS]      # rows of the position comparison
 STRONG_RANK = 10          # a spot ranked this high or better is a strength
@@ -233,15 +235,17 @@ def last_team(mlbam_ids, season: int, abbr: pd.Series, path=DUCKDB_PATH) -> dict
 
 def free_agent_batters(team_inputs: pd.DataFrame, unsigned: pd.DataFrame,
                        positions: pd.DataFrame, rep_runs: float, runs_per_win: float,
-                       team_id: int, n_candidates: int = FA_CANDIDATES) -> pd.DataFrame:
+                       team_id: int, n_candidates: int = FA_CANDIDATES,
+                       options: dict | None = None) -> pd.DataFrame:
     """Gain in team batting WAR from signing each unsigned batter, by re-optimizing the lineup
     (`bucco.models.scenario.compare_lineups`).
 
     Candidates: unsigned batters with at least FA_MIN_PA projected PA, the best n_candidates by
     WAR per 600 PA. proj_war and proj_pa are the projection's own. `losers` are the players who
     lose the most PA. `off_position` flags a player the optimizer puts mostly at a position he
-    did not play last season (worth a second look).
+    did not play last season (worth a second look). `options`: lineup optimizer settings.
     """
+    options = options or {}
     cols = ["name", "mlbam_id", "gain", "pa", "where", "natives", "off_position", "wrc_plus",
             "war600", "proj_war", "proj_pa", "losers"]
     if unsigned.empty:
@@ -249,13 +253,14 @@ def free_agent_batters(team_inputs: pd.DataFrame, unsigned: pd.DataFrame,
     pool = unsigned[unsigned["plate_appearances"] >= FA_MIN_PA].copy()
     pool["war600"] = pool["war"] / pool["plate_appearances"] * 600
     pool = pool.sort_values("war600", ascending=False).head(n_candidates).assign(team_id=team_id)
-    before = lo.optimize_team(team_inputs, rep_runs, runs_per_win)
+    before = lo.optimize_team(team_inputs, rep_runs, runs_per_win, **options)
     rows = []
     for r in pool.itertuples(index=False):
         one = lo.player_inputs(pd.DataFrame([r._asdict()]), positions)
         if one.empty:
             continue
-        change = compare_lineups(team_inputs, rep_runs, runs_per_win, add=one, before=before)
+        change = compare_lineups(team_inputs, rep_runs, runs_per_win, add=one, before=before,
+                                 options=options)
         where = change.where(r.player_name)
         natives = one["natives"].iloc[0]
         main = where[0][0] if where else None
@@ -271,7 +276,7 @@ def free_agent_batters(team_inputs: pd.DataFrame, unsigned: pd.DataFrame,
 
 def best_pair(fa: pd.DataFrame, unsigned: pd.DataFrame, team_inputs: pd.DataFrame,
               positions: pd.DataFrame, rep_runs: float, runs_per_win: float,
-              team_id: int) -> dict | None:
+              team_id: int, options: dict | None = None) -> dict | None:
     """The two best free agents who would play different positions, signed together."""
     if len(fa) < 2:
         return None
@@ -284,7 +289,7 @@ def best_pair(fa: pd.DataFrame, unsigned: pd.DataFrame, team_inputs: pd.DataFram
     picks = unsigned[unsigned["mlbam_id"].isin([first["mlbam_id"], second["mlbam_id"]])] \
         .assign(team_id=team_id)
     both = lo.player_inputs(picks, positions)
-    change = compare_lineups(team_inputs, rep_runs, runs_per_win, add=both)
+    change = compare_lineups(team_inputs, rep_runs, runs_per_win, add=both, options=options)
     return {"names": [first["name"], second["name"]], "gain": change.gain,
             "separate": float(first["gain"] + second["gain"])}
 
@@ -441,7 +446,8 @@ def build_outlook_data(team: str = "PIT", season: int | None = None,
                                                                   projections_dir)
     positions = _query("select mlbam_id, position, games from marts.player_position_games "
                        "where season = ?", [season], path)
-    alloc, inputs = lo.optimize_league(batters, positions)
+    options = OPTIMIZER_OPTIONS.get(source, {})
+    alloc, inputs = lo.optimize_league(batters, positions, **options)
     rpw, rep = alloc.attrs["runs_per_win"], alloc.attrs["rep_runs"]
 
     table = spot_war(alloc, pitchers, abbr)
@@ -460,14 +466,16 @@ def build_outlook_data(team: str = "PIT", season: int | None = None,
 
     sched = schedule_effects(forecast, season, abbr, path)
     team_inputs = inputs[inputs["team_id"] == team_id]
-    fa_bat = free_agent_batters(team_inputs, fa_bat_pool, positions, rep, rpw, team_id)
+    fa_bat = free_agent_batters(team_inputs, fa_bat_pool, positions, rep, rpw, team_id,
+                                options=options)
     if len(fa_bat):
         teams_before = last_team(fa_bat["mlbam_id"], season, abbr, path)
         fa_bat["last_team"] = fa_bat["mlbam_id"].map(teams_before)
     if len(fa_bat):
         fit = free_agent_park_fit(fa_bat["mlbam_id"], batters, team_id, season, path)
         fa_bat["park_fit"] = [fit.get(i) for i in fa_bat["mlbam_id"]]
-    pair = best_pair(fa_bat, fa_bat_pool, team_inputs, positions, rep, rpw, team_id)
+    pair = best_pair(fa_bat, fa_bat_pool, team_inputs, positions, rep, rpw, team_id,
+                     options=options)
     fa_pit, pit_base = free_agent_pitchers(fa_pit_pool, pitchers, team_id)
 
     def summary(values: pd.Series) -> dict:

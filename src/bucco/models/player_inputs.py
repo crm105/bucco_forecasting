@@ -14,6 +14,7 @@ import pandas as pd
 from bucco.config import DUCKDB_PATH
 from bucco.models import availability as avail
 from bucco.models import innings as inn
+from bucco.models import lineup_optimizer as lo
 from bucco.models import marcel
 from bucco.models import milb as mle
 from bucco.models.depth_chart_model import DepthChartModel, PlayerData
@@ -243,18 +244,19 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
                      park_fit: bool = False, fielding: bool = False,
                      innings: str = "marcel", pitcher_playing_time: str = "depth_chart",
                      availability: str = "none", milb: float = 0.0,
-                     milb_rookies: bool = False, path=DUCKDB_PATH) -> PlayerData:
+                     milb_rookies: bool = False, relative_fatigue: bool = False,
+                     path=DUCKDB_PATH) -> PlayerData:
     """Our own Marcel projections on each team's preseason roster.
 
     Rosters are the team assignments in `roster_source`'s player files (players listed for
     each team before Opening Day); only who is on which team is taken from them. Players on a
-    roster with no MLB history in the three prior seasons get no projection. Pitchers always go
-    through the depth chart: Marcel lists every pitcher with his own innings. `park_fit` adds
-    each batter's fit to his 2027 (target-season) park, centered on his team. `fielding`: see
-    `marcel_projections`, as is `availability`. `innings` ("marcel" or "baseline") and
-    `pitcher_playing_time`
+    roster with no MLB history in the three prior seasons get no projection (unless
+    `milb_rookies`). `park_fit` adds each batter's fit to his 2027 (target-season) park,
+    centered on his team. `fielding`, `availability`, `milb` and `milb_rookies`: see
+    `marcel_projections`. `innings` ("marcel" or "baseline") and `pitcher_playing_time`
     ("depth_chart" or "optimized": bucco.models.staff_optimizer) set how pitchers' innings are
-    projected and shared out."""
+    projected and shared out. `relative_fatigue`: the lineup optimizer's fatigue curve relative
+    to each batter's projected PA (lineup_optimizer.RELATIVE) instead of a 600-PA scale."""
     batters, pitchers = marcel_projections(aging, prior, park, fielding, innings,
                                            availability, milb, milb_rookies, path=path)
     roster = marcel_rosters(roster_source, path)
@@ -268,7 +270,8 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
         batters = with_park_fit(batters, path=path)
     return PlayerData(batters, on_rosters(pitchers, roster, "pitcher"),
                       positions, source="Marcel", playing_time=playing_time,
-                      matchups=matchups, pitcher_playing_time=pitcher_playing_time)
+                      matchups=matchups, pitcher_playing_time=pitcher_playing_time,
+                      optimizer_options=lo.RELATIVE if relative_fatigue else None)
 
 
 def make_marcel_model() -> DepthChartModel:
@@ -322,12 +325,13 @@ def make_marcel_staff_optimized_model() -> DepthChartModel:
     """Factory for the registry: `marcel_park_optimized` with baseline innings
     (bucco.models.innings) shared out by the staff optimizer (bucco.models.staff_optimizer), and
     playing time scaled by Opening Day 40-man status (bucco.models.availability), and batters'
-    minor-league history (major-league equivalents, bucco.models.milb), rookies included."""
+    minor-league history (major-league equivalents, bucco.models.milb), rookies included; batters'
+    fatigue curve relative to their projected PA (lineup_optimizer.RELATIVE)."""
     return DepthChartModel(load_marcel_data("optimized", aging=True, prior="fitted", park=True,
                                             fielding=True, innings="baseline",
                                             pitcher_playing_time="optimized",
                                             availability="absolute", milb=mle.MILB_WEIGHT,
-                                            milb_rookies=True),
+                                            milb_rookies=True, relative_fatigue=True),
                            name="marcel_staff_optimized")
 
 

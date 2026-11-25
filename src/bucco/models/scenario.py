@@ -119,20 +119,23 @@ class LineupChange:
 
 def compare_lineups(team_inputs: pd.DataFrame, rep_runs: float, runs_per_win: float,
                     add: pd.DataFrame | None = None, remove: Iterable[int] = (),
-                    before: pd.DataFrame | None = None, team: str = "") -> LineupChange:
+                    before: pd.DataFrame | None = None, team: str = "",
+                    options: dict | None = None) -> LineupChange:
     """Re-optimize one team with players added (rows from `lineup_optimizer.player_inputs`) and
     removed (mlbam ids), and compare with its current lineup. Pass `before` (the current
-    allocation) to skip re-solving it when running many scenarios for one team."""
+    allocation) to skip re-solving it when running many scenarios for one team. `options`:
+    keyword arguments for `lineup_optimizer.optimize_team` (e.g. the relative curve)."""
+    options = options or {}
     remove = set(remove)
     if before is None:
-        before = lo.optimize_team(team_inputs, rep_runs, runs_per_win)
+        before = lo.optimize_team(team_inputs, rep_runs, runs_per_win, **options)
     after_inputs = team_inputs[~team_inputs["mlbam_id"].isin(remove)]
     if add is not None and len(add):
         dup = set(add["mlbam_id"]) & set(after_inputs["mlbam_id"])
         if dup:
             raise ScenarioError(f"already on the team: {sorted(dup)}")
         after_inputs = pd.concat([after_inputs, add], ignore_index=True)
-    after = lo.optimize_team(after_inputs, rep_runs, runs_per_win)
+    after = lo.optimize_team(after_inputs, rep_runs, runs_per_win, **options)
     names = dict(zip(team_inputs["mlbam_id"], team_inputs["player_name"], strict=True))
     return LineupChange(before=before, after=after,
                         added=[] if add is None else list(add["player_name"]),
