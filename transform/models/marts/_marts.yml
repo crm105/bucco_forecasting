@@ -258,6 +258,28 @@ models:
       - name: is_two_way
         description: Pitched and played elsewhere a meaningful amount in the prior season.
 
+  - name: player_preseason_status
+    description: >
+      Each player's status on his team's Opening Day 40-man roster: what a forecaster knows about
+      injuries when the season starts. One row per season and player, from 2012; the upcoming
+      season's is taken on the day of the extract.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id]
+    columns:
+      - name: season
+        description: Season the roster opens.
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: il_group
+        description: "`il_60`, `il_short` (7-, 10- or 15-day) or `none`."
+        data_tests:
+          - not_null
+          - accepted_values:
+              values: ['il_60', 'il_short', 'none']
+
   - name: player_position_games
     description: >
       Games at each position in the PRIOR season, one row per player per position. A row for

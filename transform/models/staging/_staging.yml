@@ -173,6 +173,24 @@ models:
       - name: source_file
         description: Name of the CSV the row came from.
 
+  - name: stg_mlb__rosters
+    description: >
+      Opening Day 40-man rosters with each player's status, typed. One row per season, team and
+      player.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, team_id, mlbam_id]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: status_code
+        description: "`A`, `D60`, `D15`, `D10`, `D7`, `RM` and so on."
+        data_tests: [not_null]
+
   - name: stg_mlb__fielding
     description: >
       Fielding splits from the MLB Stats API, typed. One row per season, team, player and

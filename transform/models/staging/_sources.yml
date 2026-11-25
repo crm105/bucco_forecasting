@@ -198,6 +198,21 @@ sources:
           - name: pa
             description: Plate appearances (batters faced for pitchers) in the split.
 
+      - name: rosters
+        description: >
+          Each team's 40-man roster on its first regular-season game, one row per team and
+          player, with the player's status: `A` active, `D60`/`D15`/`D10`/`D7` injured list,
+          `RM` and others in the minors. From 2012. For a season that has not started the
+          snapshot is the day of the extract. Saved by `bucco extract mlb-rosters`, which checks
+          30 teams and one row per player per team.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/rosters/*.parquet')"
+        columns:
+          - name: snapshot_date
+            description: The date the roster was taken (YYYY-MM-DD).
+          - name: status_code
+            description: "`A`, `D60`, `D15`, `D10`, `D7`, `RM` and so on."
+
       - name: people
         description: >
           One row per player in `batting` or `pitching`: birth date, bats, throws and primary
