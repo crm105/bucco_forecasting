@@ -6,8 +6,10 @@ league and its division, and which unsigned players would help most. Every numbe
 here from the database and the projection files, so the page can be rebuilt at any time
 (`bucco outlook`). See docs/R&D/lineup_optimizer.md for the lineup optimizer it relies on.
 
-Batting comes from the lineup optimizer (every team fills the same PA at every position);
-pitching is the projection as given, which is what the forecast uses.
+Batting comes from the lineup optimizer (every team fills the same PA at every position).
+Pitching is what the forecast uses: the projection as given for Steamer, and the depth chart's
+innings for our own Marcel projections (which list every pitcher with his own innings). For
+Marcel, rosters and the unsigned list come from the Steamer file; every number is Marcel's.
 """
 
 from __future__ import annotations
@@ -36,7 +38,15 @@ DIVISIONS = {
     "NL Central": ["CHC", "CIN", "MIL", "PIT", "STL"],
     "NL West": ["AZ", "COL", "LAD", "SD", "SF"],
 }
-MODEL_SOURCE = {"steamer_optimized": "steamer", "steamer": "steamer", "depth_chart": "zips"}
+MODEL_SOURCE = {"steamer_optimized": "steamer", "steamer": "steamer", "depth_chart": "zips",
+                "marcel_optimized": "marcel", "marcel_aging_optimized": "marcel_aging",
+                "marcel_shrunk_optimized": "marcel_shrunk",
+                "marcel_park_optimized": "marcel_park"}
+# Marcel source -> (aging, what rates are shrunk toward, park-neutral), as in the models
+MARCEL_SETTINGS = {"marcel": (False, "league", False), "marcel_aging": (True, "league", False),
+                   "marcel_shrunk": (True, "fitted", False),
+                   "marcel_park": (True, "fitted", True)}
+MARCEL_ROSTERS = "steamer"   # whose preseason rosters and unsigned list Marcel is put on
 SPOTS = ["Rotation", "Bullpen", *lo.POSITIONS]      # rows of the position comparison
 STRONG_RANK = 10          # a spot ranked this high or better is a strength
 WEAK_RANK = 21            # this low or worse is a weakness
@@ -102,7 +112,9 @@ def backtest_scores(model: str, path=DUCKDB_PATH) -> dict:
 
 # ---- team WAR, position by position ------------------------------------------------------
 def pitcher_roles(pitchers: pd.DataFrame) -> pd.Series:
-    """SP if at least half his projected games are starts, else RP."""
+    """SP if at least half his projected games are starts, else RP (or the rows' own `role`)."""
+    if "role" in pitchers:
+        return pitchers["role"]
     share = pitchers["games_started"] / pitchers["games"].where(pitchers["games"] > 0)
     return pd.Series(np.where(share >= 0.5, "SP", "RP"), index=pitchers.index)
 
@@ -297,6 +309,82 @@ def free_agent_pitchers(unsigned: pd.DataFrame, pitchers: pd.DataFrame, team_id:
     return top, base
 
 
+# ---- player rows --------------------------------------------------------------------------
+def marcel_rows(source: str, season: int, path=DUCKDB_PATH,
+                projections_dir: Path = INPUT_DIR) -> tuple[pd.DataFrame, ...]:
+    """Our Marcel projections in the player_projections column names: (batters, pitchers,
+    unsigned batters, unsigned pitchers). Team pitchers carry the depth chart's innings and WAR,
+    as in the forecast; unsigned pitchers their own."""
+    from bucco.models import depth_chart as dc
+    from bucco.models.player_inputs import marcel_projections, marcel_rosters, on_rosters
+
+    bat_all, pit_all = marcel_projections(*MARCEL_SETTINGS[source], path)
+    bat_all = bat_all[bat_all["season"] == season].rename(
+        columns={"pa": "plate_appearances", "bsr": "bsr_runs"})
+    pit_all = pit_all[pit_all["season"] == season]
+    roster = marcel_rosters(MARCEL_ROSTERS, path)
+    roster = roster[roster["season"] == season]
+    batters = on_rosters(bat_all, roster, "batter")
+    team_pit = on_rosters(pit_all, roster, "pitcher")
+    charts = [dc.build_pitcher_depth_chart(g) for _, g in team_pit.groupby("team_id")]
+    pitchers = pd.concat(charts, ignore_index=True) if charts else team_pit.iloc[0:0]
+    pitchers = pitchers[pitchers["allocated"] > 0].drop(columns=["ip", "war"]).rename(
+        columns={"allocated": "innings_pitched", "scaled_war": "war"})
+    pit_all = pit_all.rename(columns={"ip": "innings_pitched"})
+
+    def unsigned(rows: pd.DataFrame, kind: str) -> pd.DataFrame:
+        ids = unsigned_players(MARCEL_ROSTERS, season, kind, projections_dir)
+        if ids.empty:
+            return ids
+        return rows[rows["mlbam_id"].isin(set(ids["mlbam_id"]))].reset_index(drop=True)
+
+    return batters, pitchers, unsigned(bat_all, "batters"), unsigned(pit_all, "pitchers")
+
+
+def projection_rows(source: str, season: int, path=DUCKDB_PATH,
+                    projections_dir: Path = INPUT_DIR) -> tuple[pd.DataFrame, ...]:
+    """(batters, pitchers, unsigned batters, unsigned pitchers) for one source and season."""
+    if source in MARCEL_SETTINGS:
+        return marcel_rows(source, season, path, projections_dir)
+    proj = _query("select * from marts.player_projections where source = ? and season = ? "
+                  "and team_id is not null and mlbam_id is not null", [source, season], path)
+    return (proj[proj["player_type"] == "batter"], proj[proj["player_type"] == "pitcher"],
+            unsigned_players(source, season, "batters", projections_dir),
+            unsigned_players(source, season, "pitchers", projections_dir))
+
+
+# ---- park fit ----------------------------------------------------------------------------
+def home_park(team_id: int, season: int, path=DUCKDB_PATH) -> str | None:
+    """The ballpark the team plays most of its home games in during the season (schedule)."""
+    rows = _query("select venue_name from intermediate.int__team_home_parks "
+                  "where team_id = ? and season = ?", [team_id, season], path)
+    return None if rows.empty else str(rows["venue_name"].iloc[0])
+
+
+def free_agent_park_fit(mlbam_ids, batters: pd.DataFrame, team_id: int, season: int,
+                        path=DUCKDB_PATH) -> dict:
+    """Runs per 600 PA each player's hitting profile would gain (+) or lose (-) in the team's
+    park compared with the team's own batters (bucco.models.marcel park fit), by mlbam_id. For
+    information only: not part of the gain or the forecast. None for a player with no profile
+    (no MLB history in the three seasons before)."""
+    from bucco.models import marcel
+    from bucco.models.player_inputs import park_fit_inputs
+
+    profiles, parks, league = park_fit_inputs(path)
+    known = set(profiles.loc[profiles["season"] == season, "mlbam_id"])
+    team = batters[(batters["team_id"] == team_id) & batters["mlbam_id"].isin(known)]
+    team = pd.DataFrame({"season": season, "mlbam_id": team["mlbam_id"].to_numpy(),
+                         "team_id": team_id, "pa": team["plate_appearances"].to_numpy()})
+    if team.empty or team["pa"].sum() <= 0:
+        return {}
+    team_runs = marcel.park_runs_per_pa(team, profiles, parks, league)
+    mean = float((team_runs * team["pa"]).sum() / team["pa"].sum())
+    ids = [i for i in mlbam_ids if i in known]
+    rows = pd.DataFrame({"season": season, "mlbam_id": ids, "team_id": team_id})
+    runs = marcel.park_runs_per_pa(rows, profiles, parks, league)
+    return {i: (r - mean) * 600.0 for i, r in zip(ids, runs, strict=True)}
+
+
 # ---- the whole outlook -------------------------------------------------------------------
 def build_outlook_data(team: str = "PIT", season: int | None = None,
                        model: str = "steamer_optimized", as_of: str | None = None,
@@ -315,12 +403,10 @@ def build_outlook_data(team: str = "PIT", season: int | None = None,
         season = int(seasons["s"].iloc[0])
     forecast, as_of = forecast_table(model, season, as_of, abbr, path)
 
-    proj = _query("select * from marts.player_projections where source = ? and season = ? "
-                  "and team_id is not null and mlbam_id is not null", [source, season], path)
+    batters, pitchers, fa_bat_pool, fa_pit_pool = projection_rows(source, season, path,
+                                                                  projections_dir)
     positions = _query("select mlbam_id, position, games from marts.player_position_games "
                        "where season = ?", [season], path)
-    batters = proj[proj["player_type"] == "batter"]
-    pitchers = proj[proj["player_type"] == "pitcher"]
     alloc, inputs = lo.optimize_league(batters, positions)
     rpw, rep = alloc.attrs["runs_per_win"], alloc.attrs["rep_runs"]
 
@@ -339,15 +425,16 @@ def build_outlook_data(team: str = "PIT", season: int | None = None,
                       key=lambda r: -r["wins"])
 
     sched = schedule_effects(forecast, season, abbr, path)
-    fa_bat_pool = unsigned_players(source, season, "batters", projections_dir)
     team_inputs = inputs[inputs["team_id"] == team_id]
     fa_bat = free_agent_batters(team_inputs, fa_bat_pool, positions, rep, rpw, team_id)
     if len(fa_bat):
         teams_before = last_team(fa_bat["mlbam_id"], season, abbr, path)
         fa_bat["last_team"] = fa_bat["mlbam_id"].map(teams_before)
+    if len(fa_bat):
+        fit = free_agent_park_fit(fa_bat["mlbam_id"], batters, team_id, season, path)
+        fa_bat["park_fit"] = [fit.get(i) for i in fa_bat["mlbam_id"]]
     pair = best_pair(fa_bat, fa_bat_pool, team_inputs, positions, rep, rpw, team_id)
-    fa_pit, pit_base = free_agent_pitchers(
-        unsigned_players(source, season, "pitchers", projections_dir), pitchers, team_id)
+    fa_pit, pit_base = free_agent_pitchers(fa_pit_pool, pitchers, team_id)
 
     def summary(values: pd.Series) -> dict:
         return {"value": float(values[team]), "avg": float(values.mean()),
@@ -357,6 +444,7 @@ def build_outlook_data(team: str = "PIT", season: int | None = None,
         "team": team, "team_id": team_id,
         "team_name": teams.set_index("team_abbr").loc[team, "team_name"],
         "season": season, "model": model, "source": source, "as_of": as_of,
+        "park": home_park(team_id, season, path),
         "today": date.today().isoformat(),
         "forecast": {"wins": float(forecast.loc[team, "wins"]),
                      "low": float(forecast.loc[team, "low"]),

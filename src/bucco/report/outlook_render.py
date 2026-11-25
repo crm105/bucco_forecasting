@@ -12,6 +12,7 @@ from html import escape
 from pathlib import Path
 from string import Formatter
 
+import pandas as pd
 import yaml
 
 from bucco.config import REPO_ROOT, REPORTS_DIR
@@ -42,8 +43,15 @@ ALLOWED: dict[str, set[str]] = {
     "fa_off_position": {"names"},
     "fa_pair": {"first", "second", "gain", "separate"},
     "fa_pitching_intro": {"weakest", "war", "ip"},
+    "fa_park_fit": {"park"},
     "footer": {"model", "rmse", "first", "last", "rmse_recent", "recent_first", "today"},
+    "positions_intro": {"pitching"},
+    "leaders_note": {"rate", "pitchers"},
+    "division_note": {"division"},
+    "fa_intro": {"unsigned"},
+    "fa_caveat": {"list"},
 }
+SOURCE_NOTES = ["pitching", "rate", "pitchers", "division", "unsigned", "list"]
 REQUIRED = [
     "kicker", "title", "date_line", "intro", "hero_wins", "hero_range", "hero_team_war",
     "hero_pitching", "hero_batting", "hero_avg", "strengths_heading", "weaknesses_heading",
@@ -53,6 +61,7 @@ REQUIRED = [
     "leaders_heading", "leaders_note", "division_heading", "division_note", "division_behind",
     "division_ahead", "division_schedule", "move_heading", "move_lineup_below", "move_lineup_above", "move_rotation",
     "fa_heading", "fa_intro", "fa_off_position", "fa_pair", "fa_pitching_intro", "fa_caveat",
+    "fa_park_fit",
     "footer",
 ]
 HEADLINES = ["pitching_led", "batting_led", "both_strong", "both_weak", "balanced"]
@@ -96,9 +105,12 @@ def load_text(path=TEXT_PATH) -> dict:
         _check(key, text[key])
     for key in HEADLINES:
         _check(f"headlines.{key}", (text.get("headlines") or {}).get(key))
-    for group in ("spot_labels", "source_labels"):
+    for group in ("spot_labels", "source_labels", "source_notes"):
         if not isinstance(text.get(group), dict):
             raise OutlookTextError(f"{group}: must be a mapping")
+    for source, notes in text["source_notes"].items():
+        for key in SOURCE_NOTES:
+            _check(f"source_notes.{source}.{key}", (notes or {}).get(key))
     return text
 
 
@@ -140,6 +152,13 @@ def _who(spot: dict) -> str:
 
 def _signed(v: float, digits: int = 1) -> str:
     return f"{v:+.{digits}f}".replace("-", "−")
+
+
+def _fit_text(v) -> str:
+    """Park fit in runs per 600 PA, or a dash when unknown."""
+    if v is None or pd.isna(v):
+        return "—"
+    return "0.0" if abs(float(v)) < 0.05 else _signed(float(v))
 
 
 SUFFIXES = {"jr.", "jr", "sr.", "sr", "ii", "iii", "iv"}
@@ -281,6 +300,9 @@ def render_outlook(data: dict, text: dict | None = None) -> str:
     f, bat, pit, tot = data["forecast"], data["batting"], data["pitching"], data["total"]
     head = text["headlines"][headline_key(pit["rank"], bat["rank"])]
     source_label = text["source_labels"].get(data["source"], data["source"])
+    if data["source"] not in text["source_notes"]:
+        raise OutlookTextError(f"source_notes: no entry for {data['source']!r}")
+    notes = text["source_notes"][data["source"]]          # raw: escaped once by fill()
 
     strengths = _list_items(data["spots"], text, labels, "strength") or [fill(text["no_strengths"])]
     weaknesses = _list_items(data["spots"], text, labels, "weakness") or [fill(text["no_weaknesses"])]
@@ -354,17 +376,20 @@ def render_outlook(data: dict, text: dict | None = None) -> str:
     fa_rows = "".join(
         f"<tr{mine_row if r.get('last_team') == team else ''}>"
         f"<td>{escape(r['name'])}{' *' if r['off_position'] else ''}</td>"
-        f"<td>{escape(str(r.get('last_team') or '—'))}</td>"
+        f"<td>{escape(r['last_team'] if isinstance(r.get('last_team'), str) else '—')}</td>"
         f"<td>{escape('/'.join(r['natives']) or '—')}</td>"
         f"<td>{escape(', '.join(f'{q} {p:.0f}' for q, p in r['where']))}</td>"
         f"<td>{_num(r['wrc_plus'])}</td>"
         f"<td>{r['proj_war']:.1f}</td><td>{r['proj_pa']:.0f}</td>"
         f"<td>{escape(_signed(r['gain']))}</td>"
+        f"<td>{escape(_fit_text(r.get('park_fit')))}</td>"
         f"<td>{escape(losers_text(r.get('losers') or []))}</td></tr>" for r in fa["batters"])
     off = [r["name"] for r in fa["batters"] if r["off_position"]]
     fa_notes = []
     if off:
         fa_notes.append(fill(text["fa_off_position"], names=and_join(off)))
+    if data.get("park") and any(_fit_text(r.get("park_fit")) != "—" for r in fa["batters"]):
+        fa_notes.append(fill(text["fa_park_fit"], park=data["park"]))
     if fa["pair"]:
         fa_notes.append(fill(text["fa_pair"], first=fa["pair"]["names"][0],
                              second=fa["pair"]["names"][1], gain=f"{fa['pair']['gain']:.1f}",
@@ -380,17 +405,17 @@ def render_outlook(data: dict, text: dict | None = None) -> str:
                          war=f"{b['weakest_sp_war']:.1f}", ip=f"{b['weakest_sp_ip']:.0f}")
     fa_section = ""
     if fa["batters"] or fa["pitchers"]:
-        fa_section = f"""<h2>{fill(text['fa_heading'])}</h2><p>{fill(text['fa_intro'])}</p>
+        fa_section = f"""<h2>{fill(text['fa_heading'])}</h2><p>{fill(text['fa_intro'], unsigned=notes['unsigned'])}</p>
 <div class="scroll"><table><tr><th>Free agent</th><th>Last team</th><th>Played</th>
 <th style="text-align:left">Where he would play (PA)</th><th>wRC+</th><th>Projected WAR</th>
-<th>Projected PA</th><th>Gain (WAR)</th>
+<th>Projected PA</th><th>Gain (WAR)</th><th>Park fit</th>
 <th style="text-align:left">Loses time (PA)</th></tr>
 {fa_rows}</table></div>
 {''.join(f'<p class="muted">{n}</p>' for n in fa_notes)}
 <h3>Pitching</h3><p class="muted">{pit_intro}</p>
 <div class="scroll"><table><tr><th>Free agent</th><th>Role</th><th>IP</th><th>FIP</th>
 <th>WAR</th><th>Gain (WAR)</th></tr>{pit_rows}</table></div>
-<p class="muted">{fill(text['fa_caveat'])}</p>"""
+<p class="muted">{fill(text['fa_caveat'], list=notes['list'])}</p>"""
 
     division_teams = {r["team"] for r in div["rows"]}
     ranked = sorted(data["scatter"], key=lambda p: p["batting"] + p["pitching"])
@@ -432,7 +457,7 @@ def render_outlook(data: dict, text: dict | None = None) -> str:
 </div>
 
 <h2>{fill(text['positions_heading'])}</h2>
-<p>{fill(text['positions_intro'])}</p>
+<p>{fill(text['positions_intro'], pitching=notes['pitching'])}</p>
 <p class="muted">{fill(text['positions_chart_note'])}</p>
 <figure style="margin:0">{spot_chart(data['spots'], labels)}
 <figcaption>{fill(text['positions_caption'])}</figcaption></figure>
@@ -450,7 +475,7 @@ def render_outlook(data: dict, text: dict | None = None) -> str:
 <th>Rank</th></tr>{run_rows}</table></div>
 
 <h2>{fill(text['leaders_heading'])}</h2>
-<p class="muted">{fill(text['leaders_note'])}</p>
+<p class="muted">{fill(text['leaders_note'], rate=notes['rate'], pitchers=notes['pitchers'])}</p>
 <div class="cols">
 <div class="scroll"><table><tr><th>Batter</th><th>Pos</th><th>PA</th><th>wRC+</th><th>WAR</th></tr>
 {bat_rows}</table></div>
@@ -461,7 +486,7 @@ def render_outlook(data: dict, text: dict | None = None) -> str:
 <h2>{fill(text['division_heading'], division=div['name'])}</h2>
 <div class="scroll"><table><tr><th>Team</th><th>Projected wins</th><th>Batting WAR</th>
 <th>Pitching WAR</th></tr>{div_rows}</table></div>
-<p class="muted">{fill(text['division_note'])}</p>
+<p class="muted">{fill(text['division_note'], division=notes['division'])}</p>
 <p>{div_text}</p>
 
 <h2>{fill(text['move_heading'])}</h2>

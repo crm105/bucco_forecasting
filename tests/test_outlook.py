@@ -43,6 +43,7 @@ def test_headline_follows_the_team_profile():
 def test_pitcher_roles():
     p = pd.DataFrame({"games": [30, 60, 0], "games_started": [30, 2, 0]})
     assert list(od.pitcher_roles(p)) == ["SP", "RP", "RP"]
+    assert list(od.pitcher_roles(p.assign(role=["RP", "SP", "RP"]))) == ["RP", "SP", "RP"]
 
 
 # ---- text --------------------------------------------------------------------------------
@@ -101,6 +102,7 @@ def _data():
     return {
         "team": "PIT", "team_id": 134, "team_name": "Pittsburgh Pirates", "season": 2027,
         "model": "steamer_optimized", "source": "steamer", "as_of": "2026-11-23",
+        "park": "PNC Park",
         "today": "2026-11-23",
         "forecast": {"wins": 81.1, "low": 68.8, "high": 93.5, "rank": 13},
         "total": {"value": 37.4, "avg": 37.3, "rank": 13}, "batting": summary,
@@ -121,7 +123,7 @@ def _data():
                          "off_position": True, "wrc_plus": 120.0, "war600": 2.4,
                          "proj_war": 3.4, "proj_pa": 590.0,
                          "losers": [("Rafael Flores Jr.", 135.0), ("replacement level", 40.0)],
-                         "last_team": "CHC"},
+                         "last_team": "CHC", "park_fit": -1.24},
                         {"name": "Our Guy", "mlbam_id": 2, "gain": 1.3, "pa": 600.0,
                          "where": [("2B", 600.0)], "natives": ["2B"], "off_position": False,
                          "wrc_plus": np.nan, "war600": 2.5, "proj_war": 2.9, "proj_pa": 610.0, "last_team": "PIT"}],
@@ -151,7 +153,22 @@ def test_render_produces_valid_charts_and_the_key_facts():
     assert "Corner Bat and Our Guy" in text            # the pair, and-joined
     assert "Arm 0, Arm 1 and Arm 2" in text            # rotation concentration note
     assert 'class="mine"><td>Our Guy' in page          # last season's own player highlighted
+    assert "<td>+2.0</td><td>−1.2</td>" in page        # park fit beside the gain
+    assert "<td>+1.3</td><td>—</td>" in page           # unknown park fit: a dash
+    assert "at PNC Park compared with" in text and "not in the gain" in text
     assert "{" not in text                             # every placeholder filled
+
+
+def test_every_source_has_its_wording_and_marcel_says_where_its_numbers_come_from():
+    text = orr.load_text()
+    assert set(od.MODEL_SOURCE.values()) <= set(text["source_notes"])
+    data = _data() | {"model": "marcel_aging_optimized", "source": "marcel_aging"}
+    data["free_agents"]["batters"][0]["last_team"] = np.nan   # no MLB team last season
+    page = orr.render_outlook(data)
+    plain = re.sub(r"<[^>]+>", " ", re.sub(r"<style>.*?</style>", "", page, flags=re.DOTALL))
+    assert "Steamer file lists with no team" in plain and "depth chart" in plain
+    assert ">nan<" not in page and "&amp;#x27;" not in page
+    assert "{" not in plain
 
 
 def test_outlook_path_names_model_team_and_date(tmp_path):

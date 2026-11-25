@@ -60,8 +60,8 @@ positions_intro: >-
   spot, DH included. Our lineup optimizer decides who plays where on each team to get the most
   batting WAR. It allows for fatigue (hitters do a little worse the more they play) and for how a
   fielder's defense changes when he moves position, measured from Statcast. Time no rostered
-  player fills better than a replacement-level player goes to one, at 0 WAR. Pitching is the
-  projection as given; the rotation is pitchers who start at least half their games.
+  player fills better than a replacement-level player goes to one, at 0 WAR. {pitching}; the
+  rotation is pitchers who start at least half their games.
 positions_chart_note: >-
   Each bar is the team's WAR at a spot minus the average team's. Green is above average, red is
   below, and the rank out of 30 is on the right.
@@ -83,13 +83,15 @@ runs_intro: >-
   teams come out negative.
 
 leaders_heading: "Projected leaders"
+# {rate}, {pitchers}
 leaders_note: >-
-  Batters: PA, main position and WAR from the optimized lineup (wRC+ is the projection's rate).
-  Pitchers: the projection, which the forecast uses as is.
+  Batters: PA, main position and WAR from the optimized lineup ({rate}).
+  Pitchers: {pitchers}.
 
 # {division}
 division_heading: "{division}"
-division_note: "Batting from the optimized lineups, pitching as projected: the forecast's inputs."
+# {division}
+division_note: "Batting from the optimized lineups, {division}: the forecast's inputs."
 # {team_short}, {place}, {leader}, {gap} (gap includes the unit, e.g. "8 wins")
 division_behind: "The forecast puts the {team_short} {place} in the division, {gap} behind the {leader}."
 # {team_short}, {gap} (gap includes the unit, e.g. "3 wins")
@@ -111,8 +113,9 @@ move_rotation: >-
   absence from any of them would cost a large part of the staff's value.
 
 fa_heading: "Free-agent targets"
+# {unsigned}
 fa_intro: >-
-  Players the projection lists with no team are unsigned. To value each one, we add him to the
+  {unsigned} To value each one, we add him to the
   roster and re-run the lineup optimizer. The gain is the change in team batting WAR, with
   everyone else's playing time and positions re-shuffled to fit him in, so it already counts
   the players who lose time (the two who lose most are listed). Projected WAR and PA are the
@@ -122,6 +125,11 @@ fa_off_position: >-
   Marked *: the optimizer would put {names} mostly at a position they did not play last season.
   The move is charged a fielding cost and an extra penalty for being new to the position, but
   check that the player can handle it before counting on the full gain.
+# {park}
+fa_park_fit: >-
+  Park fit: runs per 600 PA his hitting profile would gain (+) or lose (−) at {park} compared with
+  the team's own hitters, from how the park treats each kind of hit and walk for his side. For
+  information only: it is not in the gain or the forecast.
 # {first}, {second}, {gain}, {separate}
 fa_pair: >-
   Signing {first} and {second} together adds {gain} WAR ({separate} if their gains simply added
@@ -130,9 +138,9 @@ fa_pair: >-
 fa_pitching_intro: >-
   Starters are compared with the weakest starter, {weakest} ({war} WAR in {ip} IP), per 175
   innings; the reliever with the bullpen's weakest regular, at his own innings.
+# {list}
 fa_caveat: >-
-  Highlighted rows played for the team last season (re-signing them is the simplest move). None of this includes contract cost, age or injury history. The list is from the projection
-  file, so check that each player is still unsigned.
+  Highlighted rows played for the team last season (re-signing them is the simplest move). None of this includes contract cost, age or injury history. The list is from {list}, so check that each player is still unsigned.
 
 # {model}, {rmse}, {first}, {last}, {rmse_recent}, {recent_first}, {today}
 footer: >-
@@ -156,3 +164,35 @@ spot_labels:
 source_labels:
   steamer: "Steamer"
   zips: "ZiPS"
+  marcel: "Our own Marcel"
+  marcel_aging: "Our own Marcel (with aging)"
+  marcel_shrunk: "Our own Marcel (aging, history-based shrinkage)"
+  marcel_park: "Our own Marcel (aging, history-based shrinkage, park-adjusted)"
+
+# Sentences that depend on where the projections come from. Each source needs all five:
+# pitching (positions intro), rate and pitchers (leaders note), division (division note),
+# unsigned (free-agent intro) and list (free-agent caveat). No placeholders.
+source_notes:
+  steamer: &public
+    pitching: "Pitching is the projection as given"
+    rate: "wRC+ is the projection's rate"
+    pitchers: "the projection, which the forecast uses as is"
+    division: "pitching as projected"
+    unsigned: "Players the projection lists with no team are unsigned."
+    list: "the projection file"
+  zips: *public
+  marcel: &marcel
+    pitching: >-
+      Pitching is our depth chart's share of each team's innings, the same as the forecast uses
+    rate: "wRC+ is approximate: projected batting runs against the league, no park adjustment"
+    pitchers: "innings and WAR after the depth chart shares out the team's innings"
+    division: "pitching from the depth chart"
+    unsigned: >-
+      Players the Steamer file lists with no team are unsigned; every number here is our own
+      Marcel projection, not Steamer's.
+    list: "the Steamer file"
+  marcel_aging: *marcel
+  marcel_shrunk: *marcel
+  marcel_park:
+    <<: *marcel
+    rate: "wRC+ is approximate: projected park-neutral batting runs against the league"
