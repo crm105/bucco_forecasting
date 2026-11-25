@@ -258,6 +258,26 @@ models:
       - name: is_two_way
         description: Pitched and played elsewhere a meaningful amount in the prior season.
 
+  - name: minor_batting_seasons
+    description: >
+      Minor-league batting by player, level and season (Triple-A to Single-A, 2009 on; the
+      unaffiliated Mexican League left out), valued
+      against the player's own league with that season's MLB run values: batting runs and
+      stolen-base runs above the league average. Input to major-league equivalents.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, level, mlbam_id]
+    columns:
+      - name: season
+        description: Season played.
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: off_runs
+        description: Batting plus stolen-base runs above the player's league average.
+        data_tests: [not_null]
+
   - name: player_preseason_status
     description: >
       Each player's status on his team's Opening Day 40-man roster: what a forecaster knows about
