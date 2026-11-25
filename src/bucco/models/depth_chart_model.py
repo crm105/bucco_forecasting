@@ -75,6 +75,8 @@ class PlayerData:
     (for a source that lists every pitcher with his own innings); "optimized" with the staff
     optimizer (bucco.models.staff_optimizer; needs Marcel's pitcher columns); default: as for
     batters. staff_options: keyword arguments for `staff_optimizer.optimize_staffs`.
+    injury_sims: with both playing times "optimized", team WAR is the mean over this many
+    injury draws (bucco.models.injury_sim), from `injury_samples` (season -> group -> draws).
     """
 
     def __init__(self, batters: pd.DataFrame, pitchers: pd.DataFrame,
@@ -83,7 +85,9 @@ class PlayerData:
                  matchups: pd.DataFrame | None = None,
                  optimizer_options: dict | None = None,
                  pitcher_playing_time: str | None = None,
-                 staff_options: dict | None = None) -> None:
+                 staff_options: dict | None = None,
+                 injury_sims: int = 0,
+                 injury_samples: dict | None = None) -> None:
         if playing_time not in PLAYING_TIME:
             raise ValueError(f"playing_time must be one of {PLAYING_TIME}, not {playing_time!r}")
         self.source = source
@@ -94,6 +98,9 @@ class PlayerData:
         self.positions = positions
         self.optimizer_options = dict(optimizer_options or {})
         self.staff_options = dict(staff_options or {})
+        self.injury_sims = injury_sims
+        self.injury_samples = injury_samples or {}
+        self.sim_sd: dict[int, pd.Series] = {}     # team WAR sd over injury draws, by season
         self.matchups = (matchups if matchups is not None
                          else pd.DataFrame(columns=["season", "team_id", "opponent_id", "games"]))
         for frame in (self.batters, self.pitchers):
@@ -125,6 +132,9 @@ class PlayerData:
         pitchers = self._visible(self.pitchers, season, as_of).dropna(subset=["team_id"])
         if batters.empty or pitchers.empty:
             raise ValueError(f"no {self.source} player projections for {season}")
+        if self.injury_sims and self.playing_time == "optimized" \
+                and self.pitcher_playing_time == "optimized":
+            return self._simulated(batters, pitchers, season)
         if self.playing_time == "optimized":
             bat = self._optimized_batting(batters, season)
         elif self._as_given(batters, "pa", RAW_LIST_PA, season):
@@ -154,6 +164,29 @@ class PlayerData:
         allocations, _ = optimize_league(rows, self.positions[self.positions["season"] == season],
                                          **self.optimizer_options)
         return allocations.groupby("team_id")["war"].sum()
+
+    def _simulated(self, batters: pd.DataFrame, pitchers: pd.DataFrame, season: int) -> pd.Series:
+        """Team WAR as the mean over injury draws, with lineups and staffs re-optimized in each
+        (bucco.models.injury_sim). Keeps each team's sd in `sim_sd`."""
+        from bucco.models import injury_sim
+        from bucco.models import lineup_optimizer as lo
+        from bucco.models.staff_optimizer import ROTATION_MIN_SHARE
+
+        rows = batters.rename(columns={"pa": "plate_appearances"})
+        if "fld_runs" not in rows:
+            rows["fld_runs"] = np.nan
+        rpw, rep = lo.war_scale(rows)
+        bat = lo.player_inputs(rows, self.positions[self.positions["season"] == season])
+        bat = bat.merge(rows[["mlbam_id", "team_id", "age"]].drop_duplicates(["mlbam_id", "team_id"]),
+                        on=["mlbam_id", "team_id"], how="left")
+        ip = pitchers["ip"].astype(float)
+        pit = pitchers.assign(rate=(pitchers["runs"] / ip.where(ip > 0)).fillna(0.0), base_ip=ip,
+                              starter=pitchers["start_share"] >= ROTATION_MIN_SHARE)
+        res = injury_sim.simulate_season(bat, pit, self.injury_samples.get(season, {}), rep, rpw,
+                                         options=self.optimizer_options,
+                                         n_sims=self.injury_sims, seed=season).set_index("team_id")
+        self.sim_sd[season] = res["sd"]
+        return res["bat"] + res["pit"]
 
     def _optimized_pitching(self, pitchers: pd.DataFrame) -> pd.Series:
         """Pitching WAR per team with innings shared out by the staff optimizer (needs runs,

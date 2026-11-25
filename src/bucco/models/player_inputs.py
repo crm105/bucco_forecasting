@@ -170,6 +170,22 @@ def with_milb(bat_frame: pd.DataFrame, rookies: bool, path=DUCKDB_PATH) -> pd.Da
     return frame
 
 
+def injury_samples(batters: pd.DataFrame, pitchers: pd.DataFrame,
+                   path=DUCKDB_PATH) -> dict[int, dict]:
+    """Availability draws for each season (bucco.models.injury_sim.fit_availability), fitted
+    on earlier seasons' established rostered players: season -> group -> draws."""
+    from bucco.models import injury_sim
+
+    with duckdb.connect(str(path), read_only=True) as con:
+        actual_b = con.sql("select season, mlbam_id, pa as actual from marts.player_batting_seasons "
+                           "where not is_pitcher").df()
+        actual_p = con.sql("select season, mlbam_id, outs / 3.0 as actual "
+                           "from marts.player_pitching_seasons").df()
+    rows = injury_sim.established_rows(batters, pitchers, actual_b, actual_p)
+    return {int(s): injury_sim.fit_availability(rows, int(s))
+            for s in sorted(set(batters["season"]) | set(pitchers["season"]))}
+
+
 def _availability_factor(proj: pd.DataFrame, volume: str, frame: pd.DataFrame,
                          roster: pd.DataFrame, player_type: str, status: pd.DataFrame,
                          relative: bool) -> pd.Series:
@@ -245,7 +261,7 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
                      innings: str = "marcel", pitcher_playing_time: str = "depth_chart",
                      availability: str = "none", milb: float = 0.0,
                      milb_rookies: bool = False, relative_fatigue: bool = False,
-                     path=DUCKDB_PATH) -> PlayerData:
+                     injury_sims: int = 0, path=DUCKDB_PATH) -> PlayerData:
     """Our own Marcel projections on each team's preseason roster.
 
     Rosters are the team assignments in `roster_source`'s player files (players listed for
@@ -256,7 +272,9 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
     `marcel_projections`. `innings` ("marcel" or "baseline") and `pitcher_playing_time`
     ("depth_chart" or "optimized": bucco.models.staff_optimizer) set how pitchers' innings are
     projected and shared out. `relative_fatigue`: the lineup optimizer's fatigue curve relative
-    to each batter's projected PA (lineup_optimizer.RELATIVE) instead of a 600-PA scale."""
+    to each batter's projected PA (lineup_optimizer.RELATIVE) instead of a 600-PA scale.
+    `injury_sims`: team WAR as the mean over this many injury draws (bucco.models.injury_sim),
+    the draws fitted for each season on earlier ones."""
     batters, pitchers = marcel_projections(aging, prior, park, fielding, innings,
                                            availability, milb, milb_rookies, path=path)
     roster = marcel_rosters(roster_source, path)
@@ -266,12 +284,15 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
         matchups = con.sql("select season, team_id, opponent_id, games "
                            "from marts.team_matchups").df()
     batters = on_rosters(batters, roster, "batter")
+    pitchers = on_rosters(pitchers, roster, "pitcher")
     if park_fit:
         batters = with_park_fit(batters, path=path)
-    return PlayerData(batters, on_rosters(pitchers, roster, "pitcher"),
-                      positions, source="Marcel", playing_time=playing_time,
+    return PlayerData(batters, pitchers, positions, source="Marcel", playing_time=playing_time,
                       matchups=matchups, pitcher_playing_time=pitcher_playing_time,
-                      optimizer_options=lo.RELATIVE if relative_fatigue else None)
+                      optimizer_options=lo.RELATIVE if relative_fatigue else None,
+                      injury_sims=injury_sims,
+                      injury_samples=injury_samples(batters, pitchers, path)
+                      if injury_sims else None)
 
 
 def make_marcel_model() -> DepthChartModel:
