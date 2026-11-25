@@ -20,12 +20,15 @@ bucco report                       # 6. write the HTML report
 | `bucco extract mlb-seasons` | Downloads the season calendar (Opening Day, season end dates). Always re-fetched. Writes `data/cache/mlb_api/seasons.parquet`. |
 | `bucco extract mlb-standings` | Downloads final standings, one file per completed season since 2000. Skips seasons already saved and refuses to save a season that fails the 30-team and wins-equal-losses checks. |
 | `bucco extract mlb-positions` | Downloads who played which position (games, starts and innings by player, team and season) for every completed season since 2000, 30 requests per season. Skips seasons already saved and refuses to save a season that fails the 30-team and main-position checks. Writes `data/cache/mlb_api/fielding/season=<year>.parquet`. Takes `--seasons` and `--refresh` like `mlb-standings`. |
-| `bucco extract mlb-schedules` | Downloads every regular-season schedule since 2000, plus the next season once MLB publishes it (one file per season, `data/cache/mlb_api/schedules/season=<year>.parquet`). Completed seasons already saved are skipped; the current and next season are always fetched again. Refuses a season whose game count (cancelled listings aside) is more than 2% off 2,430. Used for the strength-of-schedule adjustment. Takes `--seasons` and `--refresh`. |
+| `bucco extract mlb-schedules` | Downloads every regular-season schedule since 2000 (with each game's ballpark), plus the next season once MLB publishes it (one file per season, `data/cache/mlb_api/schedules/season=<year>.parquet`). Completed seasons already saved are skipped; the current and next season are always fetched again. Refuses a season whose game count (cancelled listings aside) is more than 2% off 2,430. Used for the strength-of-schedule adjustment. Takes `--seasons` and `--refresh`. |
+| `bucco extract mlb-player-stats` | Downloads every player's batting and pitching line for every completed season since 2000 (one league-wide request per season: full-season totals, the team he finished with and how many teams he played for), then birth date, bats, throws and primary position for any player not yet saved. Refuses a season without 30 teams, with a player listed twice, or whose league plate appearances and batters faced disagree by more than 0.5%. Writes `data/cache/mlb_api/batting/`, `pitching/` (one file per season) and `people.parquet`. The history for our own player projections (rung 5b). Takes `--seasons` and `--refresh`. |
+| `bucco extract mlb-park-splits` | Downloads each team's batting and pitching lines in home games and in road games for every completed season since 2000 (two requests per season), the input to the park factors. Refuses a season without 30 teams per site and side, or whose home and road games do not add up. Writes `data/cache/mlb_api/park_splits/season=<year>.parquet`. Takes `--seasons` and `--refresh`. |
+| `bucco extract mlb-player-splits` | Downloads players' season lines split three ways for every completed season since 2000 (three requests per season): batters at home and on the road, batters batting left and right, and pitchers against left- and right-side batters. Refuses a season whose splits do not add up to the same league PA. Writes `data/cache/mlb_api/player_splits/season=<year>.parquet`. Used for park factors by batter side. Takes `--seasons` and `--refresh`. |
 | `bucco extract projections` | Reads the CSVs collected by hand in `data/manual/projections/`, validates them, and writes `data/snapshots/preseason_projections.parquet`. An empty folder is fine. |
 | `bucco extract player-projections` | Reads the player-level FanGraphs downloads (e.g. `zips_batters_individual_2024.csv`) from the same folder, validates them, and writes `data/snapshots/player_projections.parquet`. Download dates come from `_player_downloads.csv`. See the [folder README](../data/manual/projections/README.md). |
-| `bucco extract all` | Runs all six. |
+| `bucco extract all` | Runs all nine. |
 
-Options for `mlb-standings`, `mlb-schedules` and `mlb-positions`:
+Options for `mlb-standings`, `mlb-schedules`, `mlb-positions`, `mlb-player-stats`, `mlb-park-splits` and `mlb-player-splits`:
 
 - `--seasons 2024 2025` fetches only those seasons.
 - `--refresh` downloads seasons again even if they are already saved.
@@ -40,7 +43,7 @@ bucco build run --select stg_mlb__standings   # anything after "build" is passed
 bucco build test
 ```
 
-Builds `data/bucco.duckdb` with the `team_seasons`, `team_season_features`, `external_projections`, `player_projections` and `player_positions` tables, and runs the data checks. dbt always runs from `transform/` with the right environment variables.
+Builds `data/bucco.duckdb` with the `team_seasons`, `team_season_features`, `external_projections`, `player_projections` and `player_positions` tables, the player history tables (`league_seasons`, `player_batting_seasons`, `player_pitching_seasons`, `batter_projection_frame`, `pitcher_projection_frame`; see [R&D/player_history.md](R&D/player_history.md)), `park_factors` and `park_factors_by_side` (see [R&D/park_factors.md](R&D/park_factors.md)), and runs the data checks. dbt always runs from `transform/` with the right environment variables.
 
 ## Backtest: score the models
 
@@ -55,11 +58,11 @@ For each past season from 2001 to 2026, each model is trained on earlier seasons
 
 | Option | Effect |
 | --- | --- |
-| `--models` | Which models to run. Default is all registered models: `constant`, `last_year`, `holt`, `depth_chart`, `steamer` and `steamer_optimized`. |
+| `--models` | Which models to run. Default is all registered models: `constant`, `last_year`, `holt`, `depth_chart`, `steamer`, `steamer_optimized`, `zips_optimized`, `blend_optimized`, `marcel`, `marcel_optimized`, `marcel_aging`, `marcel_aging_optimized`, `marcel_shrunk`, `marcel_shrunk_optimized`, `marcel_park` and `marcel_park_optimized`. |
 | `--first-season` | Score only seasons from this year on. |
 | `--include-shortened` | Include the 60-game 2020 season in the scores. It is excluded by default. |
 
-`depth_chart` (rung 5a) needs the player-level ZiPS files, so it is scored only on seasons that have them (2011 on, skipping 2010 and with the 60-game 2020 left out of the scores). `steamer` (rung 5a, Steamer player files summed as given, see [docs/R&D/steamer.md](R&D/steamer.md)) and `steamer_optimized` (Steamer batters through the lineup optimizer, see [docs/R&D/lineup_optimizer.md](R&D/lineup_optimizer.md)) are scored from 2012. `steamer_optimized` reads `data/derived/position_switch.csv`, made by `scripts/fit_position_switch.py`. To compare them fairly with the other models, use the same first season for all of them: `bucco leaderboard --first-season 2012`.
+`depth_chart` (rung 5a) needs the player-level ZiPS files, so it is scored only on seasons that have them (2011 on, skipping 2010 and with the 60-game 2020 left out of the scores). `steamer` (rung 5a, Steamer player files summed as given, see [docs/R&D/steamer.md](R&D/steamer.md)) and `steamer_optimized` (Steamer batters through the lineup optimizer, see [docs/R&D/lineup_optimizer.md](R&D/lineup_optimizer.md)) are scored from 2012. `steamer_optimized` reads `data/derived/position_switch.csv`, made by `scripts/fit_position_switch.py`. `marcel`, `marcel_optimized`, `marcel_aging`, `marcel_aging_optimized`, `marcel_shrunk`, `marcel_shrunk_optimized`, `marcel_park` and `marcel_park_optimized` (rung 5b, our own Marcel projections on the Steamer files' preseason rosters, through the depth chart or the lineup optimizer; see [R&D/marcel.md](R&D/marcel.md)) are scored from 2012 too. To compare them fairly with the other models, use the same first season for all of them: `bucco leaderboard --first-season 2012`.
 
 ## Forecast: predict the upcoming season
 
@@ -73,7 +76,7 @@ Fits the model on every completed season, then predicts the season after the lat
 
 | Option | Effect |
 | --- | --- |
-| `--model` | Required. One of the registered models (`constant`, `last_year`, `holt`, `depth_chart`, `steamer`, `steamer_optimized`). |
+| `--model` | Required. One of the registered models (see `backtest`). |
 | `--season` | Forecast a specific season. Completed seasons are refused; use `backtest` for those. |
 | `--as-of` | Forecast date to record, `YYYY-MM-DD`. Default is today. A warning is printed if it is after Opening Day. |
 | `--no-save` | Print only; do not store. |
@@ -95,7 +98,7 @@ Builds a team outlook page at `reports/<season>/<model>_<team>_outlook_<as-of>.h
 | Option | Effect |
 | --- | --- |
 | `--team` | Team abbreviation (default `PIT`). |
-| `--model` | A player-projection model (default `steamer_optimized`). |
+| `--model` | A player-projection model (default `steamer_optimized`; also `steamer`, `depth_chart`, `marcel_optimized`, `marcel_aging_optimized`, `marcel_shrunk_optimized`). |
 | `--season` | Default is the latest season with a saved forecast for the model. |
 | `--as-of` | Use the saved forecast with this as-of date (default: latest). |
 

@@ -71,17 +71,21 @@ class PlayerData:
     schedule is fixed before the season, so the forecast season's may be used).
     optimizer_options: keyword arguments for `lineup_optimizer.optimize_league` in `optimized`
     mode (e.g. anchor_pa).
+    pitcher_playing_time: "depth_chart" always shares pitchers' innings out with the depth chart
+    (for a source that lists every pitcher with his own innings); default: as for batters.
     """
 
     def __init__(self, batters: pd.DataFrame, pitchers: pd.DataFrame,
                  positions: pd.DataFrame, source: str = "ZiPS",
                  playing_time: str = "depth_chart",
                  matchups: pd.DataFrame | None = None,
-                 optimizer_options: dict | None = None) -> None:
+                 optimizer_options: dict | None = None,
+                 pitcher_playing_time: str | None = None) -> None:
         if playing_time not in PLAYING_TIME:
             raise ValueError(f"playing_time must be one of {PLAYING_TIME}, not {playing_time!r}")
         self.source = source
         self.playing_time = playing_time
+        self.pitcher_playing_time = pitcher_playing_time
         self.batters = batters.copy()
         self.pitchers = pitchers.copy()
         self.positions = positions
@@ -125,7 +129,8 @@ class PlayerData:
             batters["bsr_pct"] = dc.bsr_percentiles(batters)
             pool = dc.build_batter_pool(batters, self.positions[self.positions["season"] == season])
             bat = dc.depth_chart_by_team(pool, group="team_id").groupby("team_id")["scaled_war"].sum()
-        if self._as_given(pitchers, "ip", RAW_LIST_IP, season):
+        if self.pitcher_playing_time != "depth_chart" and \
+                self._as_given(pitchers, "ip", RAW_LIST_IP, season):
             pit = pitchers.groupby("team_id")["war"].sum()
         else:
             pit = pd.concat([dc.build_pitcher_depth_chart(g) for _, g in pitchers.groupby("team_id")]
