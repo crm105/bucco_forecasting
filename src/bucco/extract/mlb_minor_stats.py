@@ -1,5 +1,5 @@
 """MLB Stats API: minor-league batting and pitching lines, Triple-A to Single-A, by player, level
-and season.
+and season, and each season's affiliates (which organization each minor-league team belonged to).
 
 One row per player and level a season (a player who moved between teams at one level has one
 combined line, listed under his last team and league). With his age, the league (so league
@@ -13,6 +13,7 @@ leagues across that year. There was no minor-league season in 2020.
 Saved files (rebuildable, so they live in the gitignored cache):
     data/cache/mlb_api/minor_batting/season=<year>.parquet
     data/cache/mlb_api/minor_pitching/season=<year>.parquet
+    data/cache/mlb_api/minor_affiliates/season=<year>.parquet
 """
 
 from __future__ import annotations
@@ -186,3 +187,60 @@ def extract_minor_pitching(seasons: list[int] | None = None, refresh: bool = Fal
         record_run(SOURCE, "minor_pitching", out, rows=len(df), season=season,
                    url=f"{BASE_URL}/stats?group=pitching&sportId=11-14")
         log.info("Saved %d minor-league pitching lines for %d", len(df), season)
+
+
+# ---- affiliates --------------------------------------------------------------------------
+AFFILIATES_DIR = CACHE_DIR / "mlb_api" / "minor_affiliates"
+AFFILIATE_COLUMNS = ["season", "team_id", "team_name", "sport_id", "level", "parent_org_id",
+                     "fetched_at"]
+MLB_ORGS = 30
+
+
+def parse_affiliates(payload: dict, season: int, fetched_at: str) -> list[dict]:
+    """Minor-league teams with the major-league organization each belonged to that season."""
+    return [{"season": season, "team_id": t["id"], "team_name": t.get("name"),
+             "sport_id": t["sport"]["id"], "level": LEVELS.get(t["sport"]["id"]),
+             "parent_org_id": t.get("parentOrgId"), "fetched_at": fetched_at}
+            for t in payload.get("teams", []) if t.get("sport", {}).get("id") in LEVELS]
+
+
+def fetch_affiliates(season: int) -> pd.DataFrame:
+    """Every Triple-A to Single-A team of one season (one request)."""
+    payload = get_json(f"{BASE_URL}/teams",
+                       params={"sportIds": ",".join(str(s) for s in LEVELS), "season": season})
+    return pd.DataFrame(parse_affiliates(payload, season, utc_now_iso()),
+                        columns=AFFILIATE_COLUMNS)
+
+
+def validate_affiliates(df: pd.DataFrame, season: int) -> None:
+    """Refuse a season without an affiliate at every level for all 30 organizations."""
+    problems = []
+    if df["team_id"].duplicated().any():
+        problems.append("a team listed twice")
+    with_parent = df[df["parent_org_id"].notna()]
+    for level in LEVELS.values():
+        orgs = with_parent.loc[with_parent["level"] == level, "parent_org_id"].nunique()
+        if orgs < MLB_ORGS:
+            problems.append(f"{level}: affiliates of only {orgs} organizations")
+    if problems:
+        raise ValueError(f"Minor-league affiliates for {season} failed checks: "
+                         + "; ".join(problems))
+
+
+def extract_minor_affiliates(seasons: list[int] | None = None, refresh: bool = False,
+                             today: date | None = None) -> None:
+    """Fetch the minor-league affiliates of each season from FIRST_SEASON (one request each)."""
+    today = today or date.today()
+    last = today.year if today.month >= 10 else today.year - 1
+    wanted = seasons or [s for s in range(FIRST_SEASON, last + 1) if s not in NO_SEASON]
+    for season in wanted:
+        out = AFFILIATES_DIR / f"season={season}.parquet"
+        if out.exists() and not refresh:
+            log.info("Skipping %d: already saved (use --refresh to fetch again)", season)
+            continue
+        df = fetch_affiliates(season)
+        validate_affiliates(df, season)
+        write_parquet(df, out)
+        record_run(SOURCE, "minor_affiliates", out, rows=len(df), season=season,
+                   url=f"{BASE_URL}/teams?sportIds=11,12,13,14")
+        log.info("Saved %d minor-league affiliates for %d", len(df), season)

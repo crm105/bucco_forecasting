@@ -237,6 +237,17 @@ sources:
           - name: outs
             description: Outs recorded (innings x 3).
 
+      - name: minor_affiliates
+        description: >
+          Each season's Triple-A to Single-A teams with the major-league organization each
+          belonged to (`parent_org_id`), from 2006. Saved by `bucco extract mlb-minor-affiliates`,
+          which checks every organization has an affiliate at each level.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/minor_affiliates/*.parquet')"
+        columns:
+          - name: parent_org_id
+            description: MLB team id of the organization the affiliate belonged to that season.
+
       - name: people
         description: >
           One row per player in `batting` or `pitching`: birth date, bats, throws and primary

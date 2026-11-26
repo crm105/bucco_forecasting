@@ -10,6 +10,7 @@
     bucco extract mlb-rosters [--seasons 2024 2025] [--refresh]
     bucco extract mlb-minor-batting [--seasons 2024 2025] [--refresh]
     bucco extract mlb-minor-pitching [--seasons 2024 2025] [--refresh]
+    bucco extract mlb-minor-affiliates [--seasons 2024 2025] [--refresh]
     bucco extract projections
     bucco extract player-projections
     bucco extract all
@@ -81,6 +82,9 @@ def _extract(args: argparse.Namespace) -> None:
             seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
     if args.target in ("mlb-minor-pitching", "all"):
         mlb_minor_stats.extract_minor_pitching(
+            seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
+    if args.target in ("mlb-minor-affiliates", "all"):
+        mlb_minor_stats.extract_minor_affiliates(
             seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
     if args.target in ("projections", "all"):
         projections.extract_projections()
@@ -211,6 +215,11 @@ def main(argv: list[str] | None = None) -> None:
                                    "level and season (four requests per season)")
     mpit.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
     mpit.add_argument("--refresh", action="store_true", help="fetch again even if saved")
+    maff = targets.add_parser("mlb-minor-affiliates",
+                              help="minor-league teams and the organization each belonged to, "
+                                   "by season (one request per season)")
+    maff.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
+    maff.add_argument("--refresh", action="store_true", help="fetch again even if saved")
     targets.add_parser("projections", help="check and save hand-collected projections")
     targets.add_parser("player-projections",
                        help="check and save hand-downloaded player projections (ZiPS etc.)")
