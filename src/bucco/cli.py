@@ -22,6 +22,8 @@
     bucco outlook [--team PIT] [--model steamer_optimized] [--season 2027]
     bucco scenario --team PIT [--add "Ian Happ" ...] [--remove "Bryan Reynolds" ...]
     bucco leaderboard [--pirates] [--first-season 2001] [--include-shortened]
+    bucco team-war [--models marcel_staff_optimized steamer_optimized] [--first-season 2012]
+    bucco evaluate [--models marcel_staff_optimized steamer_optimized] [--first-season 2012]
 """
 
 from __future__ import annotations
@@ -37,7 +39,7 @@ import pandas as pd
 
 from bucco import forecast
 from bucco.config import DATA_DIR, TRANSFORM_DIR
-from bucco.evaluate import backtest, leaderboard
+from bucco.evaluate import backtest, leaderboard, projection_report, team_war
 from bucco.extract import (
     mlb_api,
     mlb_minor_stats,
@@ -121,6 +123,71 @@ def _backtest(args: argparse.Namespace) -> None:
     backtest.save_results(results)
     print(leaderboard.leaderboard(backtest.load_results(models=REGISTRY), args.first_season,
                                     args.include_shortened))
+
+
+def _team_war(args: argparse.Namespace) -> None:
+    """Score player-projection models on team WAR (the intermediate check), save and show it."""
+    names = args.models or [n for n in REGISTRY if hasattr(REGISTRY[n](), "data")]
+    unknown = set(names) - set(REGISTRY)
+    if unknown:
+        raise ValueError(f"unknown models {sorted(unknown)}; choose from {sorted(REGISTRY)}")
+    team_seasons, features = backtest.load_inputs()
+    actual = team_war.load_actual()
+    rows = {}
+    for name in names:
+        model = REGISTRY[name]()
+        if not hasattr(model, "data"):
+            raise ValueError(f"{name} is not a player-projection model")
+        seasons = [s for s in backtest.supported_seasons(REGISTRY[name], team_seasons) or []
+                   if s >= args.first_season]
+        logging.getLogger(__name__).info("Team WAR for %s", name)
+        err = team_war.errors(team_war.projected(model, features, seasons), actual)
+        team_war.save(err, name)
+        rows[name] = team_war.score(err)
+    table = pd.DataFrame(rows).T.sort_values("total_rmse")
+    print(f"Team WAR RMSE (projected vs actual, centered by season), from {args.first_season}:")
+    print(table.to_string(float_format=lambda x: f"{x:.2f}"))
+
+
+def _evaluate(args: argparse.Namespace) -> None:
+    """Player projections, forecast and rate-vs-playing-time tables for player-projection models."""
+    names = args.models or ["marcel_staff_optimized"]
+    unknown = set(names) - set(REGISTRY)
+    if unknown:
+        raise ValueError(f"unknown models {sorted(unknown)}; choose from {sorted(REGISTRY)}")
+    team_seasons, features = backtest.load_inputs()
+    actual = projection_report.load_actual()
+    results = backtest.load_results()
+    from bucco.models.player_inputs import marcel_rosters
+    pop = projection_report.population(actual, marcel_rosters("mlb"))
+    players, forecasts, splits = {}, {}, {}
+    for name in names:
+        model = REGISTRY[name]()
+        if not hasattr(model, "data"):
+            raise ValueError(f"{name} is not a player-projection model")
+        seasons = [s for s in backtest.supported_seasons(REGISTRY[name], team_seasons) or []
+                   if s >= args.first_season]
+        logging.getLogger(__name__).info("Evaluating %s", name)
+        proj = projection_report.collect(model, features, seasons)
+        players[name] = projection_report.player_table(proj, actual, pop)
+        forecasts[name] = projection_report.forecast_table(proj, actual, results, name, seasons)
+        splits[name] = projection_report.decomposition(proj, actual, seasons)
+    fmt = {"float_format": lambda x: f"{x:.2f}"}
+    last = max(int(team_seasons["season"].max()), args.first_season)
+    print(f"Seasons {args.first_season}-{last} without 2020. Actual WAR is our own park-neutral "
+          "approximation (see bucco.evaluate.projection_report).\n")
+    for label in ("Hitters", "Pitchers"):
+        table = pd.DataFrame({n: t.loc[label] for n, t in players.items()}).T
+        table = table.dropna(axis=1, how="all").astype({"players": int})
+        print(f"1. Player projection error, {label.lower()} (RMSE. Playing time and production: "
+              "everyone on an Opening Day 40-man or who played, 0 if not projected; rates: "
+              "projected players who played enough, weighted by playing time):")
+        print(table.to_string(**fmt), "\n")
+    print("2. Forecast error (team WAR RMSE, centered by season; record from the wins backtest):")
+    print(pd.DataFrame(forecasts).T.to_string(**fmt), "\n")
+    for name, table in splits.items():
+        print(f"3. Team WAR error, rate against playing time: {name}")
+        print(table.to_string(**fmt), "\n")
 
 
 def _forecast(args: argparse.Namespace) -> None:
@@ -289,6 +356,23 @@ def main(argv: list[str] | None = None) -> None:
     board.add_argument("--include-shortened", action="store_true",
                     help="score the 60-game 2020 season too (left out by default)")
     board.set_defaults(func=_leaderboard)
+
+    tw = commands.add_parser("team-war",
+                             help="score player-projection models on projected vs actual team "
+                                  "WAR (an intermediate check without game luck)")
+    tw.add_argument("--models", nargs="*", help="default: every player-projection model")
+    tw.add_argument("--first-season", type=int, default=2012,
+                    help="first season scored (default 2012, the first all of them cover)")
+    tw.set_defaults(func=_team_war)
+
+    ev = commands.add_parser("evaluate",
+                             help="player projection error (rate, playing time, production), "
+                                  "forecast error (team WAR, record) and how much of it is rate "
+                                  "or playing time")
+    ev.add_argument("--models", nargs="*", help="default: marcel_staff_optimized")
+    ev.add_argument("--first-season", type=int, default=2012,
+                    help="first season scored (default 2012)")
+    ev.set_defaults(func=_evaluate)
 
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
