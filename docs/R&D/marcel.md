@@ -263,6 +263,9 @@ average in the field (Reynolds, Horwitz, O'Hearn, Gonzales, Mangum, Valdez: -2.5
 
 ## Status
 
+**2026-11-26:** `marcel_staff_optimized` now uses the MLB Stats API's 40-man rosters and is
+scored from 2009 ([mlb_rosters.md](mlb_rosters.md)).
+
 **2026-11-26:** the early versions with backtest RMSE above 10 (`marcel` 10.23, `marcel_optimized`
 10.30, `marcel_aging` 10.10, `marcel_aging_optimized` 10.17, `marcel_shrunk` 10.01,
 `marcel_shrunk_optimized` 10.04) were taken out of the registry; their saved backtest results stay
