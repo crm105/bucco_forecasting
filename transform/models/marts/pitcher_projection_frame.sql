@@ -10,7 +10,9 @@
 {% set counts = ['games', 'gs', 'outs', 'bf', 'h', 'hr', 'bb', 'ibb', 'hbp', 'so', 'sh', 'runs',
                  'er', 'ground_outs', 'air_outs'] %}
 {% set values = ['ip', 'fip', 'pitching_runs', 'war_approx', 'fip_neutral',
-                 'pitching_runs_neutral', 'war_approx_neutral'] %}
+                 'pitching_runs_neutral', 'war_approx_neutral',
+                 'k_runs', 'bb_runs', 'hr_runs', 'other_runs', 'k_runs_neutral',
+                 'bb_runs_neutral', 'hr_runs_neutral', 'other_runs_neutral'] %}
 
 with seasons as (
 

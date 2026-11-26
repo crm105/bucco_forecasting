@@ -15,6 +15,16 @@
   how much his home parks inflated them (int__player_season_parks), then the same formulas,
   shifted each season so league FIP is unchanged. Projections read these.
 
+  Components (`k_runs`, `bb_runs`, `hr_runs`, `other_runs`, and `*_neutral`): pitching runs
+  split by FIP's parts, each against the season's league rate per batter faced:
+    k_runs  = 2/9 x (K - league K rate x BF)
+    bb_runs = -3/9 x (BB + HBP - league rate x BF)
+    hr_runs = -13/9 x (HR - league rate x BF)
+    other_runs = pitching runs - the three: innings per batter faced against the league (more
+                 outs per batter faced, from balls in play and double plays, means more innings
+                 for the same events). Each sums to zero over the league.
+  Our projections regress each part separately (bucco.models.marcel).
+
   Role: a starter (SP) started at least half of the games he pitched. Age is on June 30.
 #}
 
@@ -55,6 +65,10 @@ rated as (
                    + pit.hbp / coalesce(parks.m_hbp, 1))
             - 2 * pit.so / coalesce(parks.m_so, 1)) / nullif(pit.ip, 0)
             + league.fip_constant                                       as fip_neutral,
+        pit.so / coalesce(parks.m_so, 1)                                as so_neutral,
+        (pit.bb - pit.ibb) / coalesce(parks.m_ubb, 1) + pit.ibb
+            + pit.hbp / coalesce(parks.m_hbp, 1)                        as bbh_neutral,
+        pit.hr / coalesce(parks.m_hr, 1)                                as hr_neutral,
         league.ra9 - league.era                                         as ra9_minus_era,
         league.ra9                                                      as league_ra9,
         (league.rp_replacement_runs_per_ip
@@ -75,8 +89,34 @@ balanced as (
         * replace (
             fip_neutral + sum((fip - fip_neutral) * ip) over (partition by season)
                 / sum(ip) over (partition by season) as fip_neutral
-        )
+        ),
+        sum(so) over (partition by season) / sum(bf) over (partition by season)      as lg_k,
+        sum(bb + hbp) over (partition by season) / sum(bf) over (partition by season) as lg_bbh,
+        sum(hr) over (partition by season) / sum(bf) over (partition by season)      as lg_hr,
+        sum(so_neutral) over (partition by season) / sum(bf) over (partition by season)
+                                                                        as lg_k_neutral,
+        sum(bbh_neutral) over (partition by season) / sum(bf) over (partition by season)
+                                                                        as lg_bbh_neutral,
+        sum(hr_neutral) over (partition by season) / sum(bf) over (partition by season)
+                                                                        as lg_hr_neutral
     from rated
+
+),
+
+valued as (
+
+    select
+        *,
+        coalesce((league_ra9 - (fip + ra9_minus_era)) * ip / 9, 0)       as pitching_runs,
+        coalesce((league_ra9 - (fip_neutral + ra9_minus_era)) * ip / 9, 0)
+                                                                        as pitching_runs_neutral,
+        2.0 / 9 * (so - lg_k * bf)                                      as k_runs,
+        -3.0 / 9 * (bb + hbp - lg_bbh * bf)                             as bb_runs,
+        -13.0 / 9 * (hr - lg_hr * bf)                                   as hr_runs,
+        2.0 / 9 * (so_neutral - lg_k_neutral * bf)                      as k_runs_neutral,
+        -3.0 / 9 * (bbh_neutral - lg_bbh_neutral * bf)                  as bb_runs_neutral,
+        -13.0 / 9 * (hr_neutral - lg_hr_neutral * bf)                   as hr_runs_neutral
+    from balanced
 
 )
 
@@ -125,17 +165,25 @@ select
     9.0 * balanced.er / nullif(balanced.ip, 0)                                as era,
     9.0 * balanced.runs / nullif(balanced.ip, 0)                              as ra9,
     balanced.fip,
-    coalesce((balanced.league_ra9 - (balanced.fip + balanced.ra9_minus_era)) * balanced.ip / 9, 0)
-                                                                        as pitching_runs,
+    balanced.pitching_runs,
     balanced.replacement_runs,
     (coalesce((balanced.league_ra9 - (balanced.fip + balanced.ra9_minus_era)) * balanced.ip / 9, 0)
         + balanced.replacement_runs) / balanced.runs_per_win                  as war_approx,
     balanced.fip_neutral,
-    coalesce((balanced.league_ra9 - (balanced.fip_neutral + balanced.ra9_minus_era)) * balanced.ip / 9, 0)
-                                                                        as pitching_runs_neutral,
+    balanced.pitching_runs_neutral,
     (coalesce((balanced.league_ra9 - (balanced.fip_neutral + balanced.ra9_minus_era)) * balanced.ip / 9, 0)
-        + balanced.replacement_runs) / balanced.runs_per_win                  as war_approx_neutral
-from balanced
+        + balanced.replacement_runs) / balanced.runs_per_win                  as war_approx_neutral,
+    balanced.k_runs,
+    balanced.bb_runs,
+    balanced.hr_runs,
+    balanced.pitching_runs - balanced.k_runs - balanced.bb_runs - balanced.hr_runs
+                                                                        as other_runs,
+    balanced.k_runs_neutral,
+    balanced.bb_runs_neutral,
+    balanced.hr_runs_neutral,
+    balanced.pitching_runs_neutral - balanced.k_runs_neutral - balanced.bb_runs_neutral
+        - balanced.hr_runs_neutral                                      as other_runs_neutral
+from valued as balanced
 left join people
     on people.mlbam_id = balanced.mlbam_id
 left join {{ ref('int__player_sides') }} as sides
