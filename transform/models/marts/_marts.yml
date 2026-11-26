@@ -297,6 +297,18 @@ models:
         description: FIP-based runs above the pitcher's league average (positive is better).
         data_tests: [not_null]
 
+  - name: player_il_seasons
+    description: >
+      Days, stints and 60-day stints on the injured list per player and regular season, from
+      2009 (stints from placement, or its retroactive date, to the next activation).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id]
+    columns:
+      - name: il_days
+        description: Regular-season days on the injured list (each day once).
+        data_tests: [not_null]
+
   - name: organization_depth
     description: >
       Each organization's minor-league depth going into a season: players who played for its
