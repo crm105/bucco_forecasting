@@ -13,6 +13,7 @@ from bucco.config import DUCKDB_PATH, REPO_ROOT
 from bucco.evaluate import metrics
 from bucco.evaluate.backtest import load_results
 from bucco.evaluate.metrics import Z_80
+from bucco.models import REGISTRY
 from bucco.models.base import GAMES, PIRATES_TEAM_ID
 
 
@@ -82,7 +83,7 @@ def build_report_data(model: str | None = None, season: int | None = None,
                       today: date | None = None) -> dict:
     """Collect forecast, history, scores and the notes for one report."""
     today = today or date.today()
-    results = load_results(path)
+    results = load_results(path, models=REGISTRY)
     model = model or best_model(results)
     if model not in set(results["model"]):
         raise RuntimeError(f"{model} has no backtest results. Run `bucco backtest` first.")

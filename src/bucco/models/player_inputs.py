@@ -390,40 +390,6 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
                       if injury_sims else None)
 
 
-def make_marcel_model() -> DepthChartModel:
-    """Factory for the registry: our Marcel projections through the depth chart."""
-    return DepthChartModel(load_marcel_data(), name="marcel")
-
-
-def make_marcel_optimized_model() -> DepthChartModel:
-    """Factory for the registry: Marcel batters through the lineup optimizer, pitchers through
-    the depth chart."""
-    return DepthChartModel(load_marcel_data("optimized"), name="marcel_optimized")
-
-
-def make_marcel_aging_model() -> DepthChartModel:
-    """Factory for the registry: Marcel with age curves, through the depth chart."""
-    return DepthChartModel(load_marcel_data(aging=True), name="marcel_aging")
-
-
-def make_marcel_aging_optimized_model() -> DepthChartModel:
-    """Factory for the registry: Marcel with age curves, batters through the lineup optimizer."""
-    return DepthChartModel(load_marcel_data("optimized", aging=True),
-                           name="marcel_aging_optimized")
-
-
-def make_marcel_shrunk_model() -> DepthChartModel:
-    """Factory for the registry: Marcel with aging, each player shrunk toward what players with
-    as much history went on to do (not the league average), through the depth chart."""
-    return DepthChartModel(load_marcel_data(aging=True, prior="fitted"), name="marcel_shrunk")
-
-
-def make_marcel_shrunk_optimized_model() -> DepthChartModel:
-    """Factory for the registry: `marcel_shrunk` with batters through the lineup optimizer."""
-    return DepthChartModel(load_marcel_data("optimized", aging=True, prior="fitted"),
-                           name="marcel_shrunk_optimized")
-
-
 def make_marcel_park_model() -> DepthChartModel:
     """Factory for the registry: `marcel_shrunk` on park-neutral history."""
     return DepthChartModel(load_marcel_data(aging=True, prior="fitted", park=True),

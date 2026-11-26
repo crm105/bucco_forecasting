@@ -263,6 +263,12 @@ average in the field (Reynolds, Horwitz, O'Hearn, Gonzales, Mangum, Valdez: -2.5
 
 ## Status
 
+**2026-11-26:** the early versions with backtest RMSE above 10 (`marcel` 10.23, `marcel_optimized`
+10.30, `marcel_aging` 10.10, `marcel_aging_optimized` 10.17, `marcel_shrunk` 10.01,
+`marcel_shrunk_optimized` 10.04) were taken out of the registry; their saved backtest results stay
+in the database, and the settings they used remain as options of `load_marcel_data`. Below, as
+written at the time:
+
 Registered (`marcel`, `marcel_optimized`, `marcel_aging`, `marcel_aging_optimized`) and
 backtested, plus `marcel_shrunk`, `marcel_shrunk_optimized`, `marcel_park` and
 `marcel_park_optimized`. `marcel_park_optimized`, with fielding from Steamer and ZiPS, is our best own-projection model (9.81). Not adopted: Steamer stays the

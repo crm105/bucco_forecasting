@@ -163,9 +163,6 @@ spot_labels:
 source_labels:
   steamer: "Steamer"
   zips: "ZiPS"
-  marcel: "Our own Marcel"
-  marcel_aging: "Our own Marcel (with aging)"
-  marcel_shrunk: "Our own Marcel (aging, history-based shrinkage)"
   marcel_park: "Our own Marcel (aging, history-based shrinkage, park-adjusted)"
   marcel_park_fielding: >-
     Our own Marcel (aging, history-based shrinkage, park-adjusted; fielding from Steamer and
@@ -188,22 +185,17 @@ source_notes:
     unsigned: "Players the projection lists with no team are unsigned."
     list: "the projection file"
   zips: *public
-  marcel: &marcel
+  marcel_park: &marcel
     pitching: >-
       Pitching is our depth chart's share of each team's innings, the same as the forecast uses;
       the rotation is pitchers who start at least half their games
-    rate: "wRC+ is approximate: projected batting runs against the league, no park adjustment"
+    rate: "wRC+ is approximate: projected park-neutral batting runs against the league"
     pitchers: "innings and WAR after the depth chart shares out the team's innings"
     division: "pitching from the depth chart"
     unsigned: >-
       Players the Steamer file lists with no team are unsigned; every number here is our own
       Marcel projection, not Steamer's.
     list: "the Steamer file"
-  marcel_aging: *marcel
-  marcel_shrunk: *marcel
-  marcel_park:
-    <<: *marcel
-    rate: "wRC+ is approximate: projected park-neutral batting runs against the league"
   marcel_park_fielding:
     <<: *marcel
     rate: "wRC+ is approximate: projected park-neutral batting runs against the league"

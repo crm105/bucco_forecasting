@@ -162,7 +162,7 @@ def test_render_produces_valid_charts_and_the_key_facts():
 def test_every_source_has_its_wording_and_marcel_says_where_its_numbers_come_from():
     text = orr.load_text()
     assert set(od.MODEL_SOURCE.values()) <= set(text["source_notes"])
-    data = _data() | {"model": "marcel_aging_optimized", "source": "marcel_aging"}
+    data = _data() | {"model": "marcel_park_optimized", "source": "marcel_park_fielding"}
     data["free_agents"]["batters"][0]["last_team"] = np.nan   # no MLB team last season
     page = orr.render_outlook(data)
     plain = re.sub(r"<[^>]+>", " ", re.sub(r"<style>.*?</style>", "", page, flags=re.DOTALL))

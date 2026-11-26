@@ -106,11 +106,16 @@ def save_results(results: pd.DataFrame, path=DUCKDB_PATH) -> None:
                     "select *, current_timestamp from new_results")
 
 
-def load_results(path=DUCKDB_PATH) -> pd.DataFrame:
+def load_results(path=DUCKDB_PATH, models=None) -> pd.DataFrame:
+    """Saved backtest results; with `models`, only those models' rows (results of models since
+    taken out of the registry stay saved but are left out of leaderboards and reports)."""
     if not path.exists():
         raise RuntimeError(f"{path} not found. Run `bucco backtest` first.")
     with duckdb.connect(str(path), read_only=True) as con:
         try:
-            return con.sql("select * from evaluate.backtest_results").df()
+            results = con.sql("select * from evaluate.backtest_results").df()
         except duckdb.CatalogException as error:
             raise RuntimeError("No backtest results yet. Run `bucco backtest` first.") from error
+    if models is not None:
+        results = results[results["model"].isin(list(models))].reset_index(drop=True)
+    return results

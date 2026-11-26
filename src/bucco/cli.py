@@ -110,7 +110,7 @@ def _backtest(args: argparse.Namespace) -> None:
                                                                                team_seasons)))
     results = pd.concat(frames, ignore_index=True)
     backtest.save_results(results)
-    print(leaderboard.leaderboard(backtest.load_results(), args.first_season,
+    print(leaderboard.leaderboard(backtest.load_results(models=REGISTRY), args.first_season,
                                     args.include_shortened))
 
 
@@ -155,7 +155,7 @@ def _scenario(args: argparse.Namespace) -> None:
 
 
 def _leaderboard(args: argparse.Namespace) -> None:
-    results = backtest.load_results()
+    results = backtest.load_results(models=REGISTRY)
     print(leaderboard.leaderboard(results, args.first_season, args.include_shortened))
     if args.pirates:
         print("\nPirates error by season (wins, predicted minus actual):")

@@ -61,11 +61,11 @@ For each past season from 2001 to 2026, each model is trained on earlier seasons
 
 | Option | Effect |
 | --- | --- |
-| `--models` | Which models to run. Default is all registered models: `constant`, `last_year`, `holt`, `depth_chart`, `steamer`, `steamer_optimized`, `zips_optimized`, `blend_optimized`, `marcel`, `marcel_optimized`, `marcel_aging`, `marcel_aging_optimized`, `marcel_shrunk`, `marcel_shrunk_optimized`, `marcel_park` and `marcel_park_optimized`. |
+| `--models` | Which models to run. Default is all registered models: `constant`, `last_year`, `holt`, `depth_chart`, `steamer`, `steamer_optimized`, `zips_optimized`, `blend_optimized`, `marcel_park`, `marcel_park_optimized`, `marcel_parkfit`, `marcel_parkfit_optimized` and `marcel_staff_optimized`. Leaderboards and reports show only registered models; saved results of models since removed stay in the database. |
 | `--first-season` | Score only seasons from this year on. |
 | `--include-shortened` | Include the 60-game 2020 season in the scores. It is excluded by default. |
 
-`depth_chart` (rung 5a) needs the player-level ZiPS files, so it is scored only on seasons that have them (2011 on, skipping 2010 and with the 60-game 2020 left out of the scores). `steamer` (rung 5a, Steamer player files summed as given, see [docs/R&D/steamer.md](R&D/steamer.md)) and `steamer_optimized` (Steamer batters through the lineup optimizer, see [docs/R&D/lineup_optimizer.md](R&D/lineup_optimizer.md)) are scored from 2012. `steamer_optimized` reads `data/derived/position_switch.csv`, made by `scripts/fit_position_switch.py`. `marcel`, `marcel_optimized`, `marcel_aging`, `marcel_aging_optimized`, `marcel_shrunk`, `marcel_shrunk_optimized`, `marcel_park` and `marcel_park_optimized` (rung 5b, our own Marcel projections on the Steamer files' preseason rosters, through the depth chart or the lineup optimizer; see [R&D/marcel.md](R&D/marcel.md)) are scored from 2012 too. To compare them fairly with the other models, use the same first season for all of them: `bucco leaderboard --first-season 2012`.
+`depth_chart` (rung 5a) needs the player-level ZiPS files, so it is scored only on seasons that have them (2011 on, skipping 2010 and with the 60-game 2020 left out of the scores). `steamer` (rung 5a, Steamer player files summed as given, see [docs/R&D/steamer.md](R&D/steamer.md)) and `steamer_optimized` (Steamer batters through the lineup optimizer, see [docs/R&D/lineup_optimizer.md](R&D/lineup_optimizer.md)) are scored from 2012. `steamer_optimized` reads `data/derived/position_switch.csv`, made by `scripts/fit_position_switch.py`. `marcel_park`, `marcel_park_optimized`, `marcel_parkfit`, `marcel_parkfit_optimized` and `marcel_staff_optimized` (rung 5b, our own Marcel projections on the Steamer files' preseason rosters, through the depth chart or the lineup optimizer; see [R&D/marcel.md](R&D/marcel.md)) are scored from 2012 too. To compare them fairly with the other models, use the same first season for all of them: `bucco leaderboard --first-season 2012`.
 
 ## Forecast: predict the upcoming season
 
@@ -101,7 +101,7 @@ Builds a team outlook page at `reports/<season>/<model>_<team>_outlook_<as-of>.h
 | Option | Effect |
 | --- | --- |
 | `--team` | Team abbreviation (default `PIT`). |
-| `--model` | A player-projection model (default `steamer_optimized`; also `steamer`, `depth_chart`, `marcel_optimized`, `marcel_aging_optimized`, `marcel_shrunk_optimized`). |
+| `--model` | A player-projection model (default `steamer_optimized`; also `steamer`, `depth_chart`, `marcel_park_optimized`, `marcel_staff_optimized`). |
 | `--season` | Default is the latest season with a saved forecast for the model. |
 | `--as-of` | Use the saved forecast with this as-of date (default: latest). |
 

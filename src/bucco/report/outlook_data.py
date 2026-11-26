@@ -41,8 +41,6 @@ DIVISIONS = {
     "NL West": ["AZ", "COL", "LAD", "SD", "SF"],
 }
 MODEL_SOURCE = {"steamer_optimized": "steamer", "steamer": "steamer", "depth_chart": "zips",
-                "marcel_optimized": "marcel", "marcel_aging_optimized": "marcel_aging",
-                "marcel_shrunk_optimized": "marcel_shrunk",
                 "marcel_park_optimized": "marcel_park_fielding",
                 "marcel_staff_optimized": "marcel_staff"}
 # Marcel source -> (aging, what rates are shrunk toward, park-neutral, fielding from Steamer
@@ -50,10 +48,7 @@ MODEL_SOURCE = {"steamer_optimized": "steamer", "steamer": "steamer", "depth_cha
 # PA, rookies from minor-league history, weight of minor-league batters faced[, pitchers' runs
 # regressed by part: marcel.COMPONENT_REG_BF]), as in the models
 _NONE = ("none", 0.0, False, 0.0)
-MARCEL_SETTINGS = {"marcel": (False, "league", False, False, "marcel", *_NONE),
-                   "marcel_aging": (True, "league", False, False, "marcel", *_NONE),
-                   "marcel_shrunk": (True, "fitted", False, False, "marcel", *_NONE),
-                   "marcel_park": (True, "fitted", True, False, "marcel", *_NONE),
+MARCEL_SETTINGS = {"marcel_park": (True, "fitted", True, False, "marcel", *_NONE),
                    "marcel_park_fielding": (True, "fitted", True, True, "marcel", *_NONE),
                    "marcel_staff": (True, "fitted", True, True, "baseline", "absolute", 0.5,
                                     True, 0.5, tuple(marcel.COMPONENT_REG_BF[p]
