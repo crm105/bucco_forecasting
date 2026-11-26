@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 SOURCE = "mlb_api"
 MINOR_DIR = CACHE_DIR / "mlb_api" / "minor_batting"
 LEVELS = {11: "AAA", 12: "AA", 13: "A+", 14: "A"}
-FIRST_SEASON = 2009                # three seasons before the first Steamer-era target (2012)
+FIRST_SEASON = 2006                # three seasons before the first roster season (2009)
 NO_SEASON = {2020}                 # minor-league season cancelled
 MIN_ROWS_PER_LEVEL = 300
 

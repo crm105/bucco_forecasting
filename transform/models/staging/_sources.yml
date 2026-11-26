@@ -202,8 +202,8 @@ sources:
         description: >
           Each team's 40-man roster on its first regular-season game, one row per team and
           player, with the player's status: `A` active, `D60`/`D15`/`D10`/`D7` injured list,
-          `RM` and others in the minors. From 2012. For a season that has not started the
-          snapshot is the day of the extract. Saved by `bucco extract mlb-rosters`, which checks
+          `RM` and others in the minors. From 2009 (earlier seasons' rosters in the API are
+          incomplete). For a season that has not started the snapshot is the day of the extract. Saved by `bucco extract mlb-rosters`, which checks
           30 teams and one row per player per team.
         meta:
           external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/rosters/*.parquet')"
@@ -216,7 +216,7 @@ sources:
       - name: minor_batting
         description: >
           Minor-league batting lines, Triple-A (sport 11) to Single-A (14), one row per player,
-          level and season from 2009 (no 2020), with age and league. Saved by `bucco extract
+          level and season from 2006 (no 2020), with age and league. Saved by `bucco extract
           mlb-minor-batting`, which checks each level's size and the PA arithmetic.
         meta:
           external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/minor_batting/*.parquet')"
@@ -229,7 +229,7 @@ sources:
       - name: minor_pitching
         description: >
           Minor-league pitching lines, Triple-A (sport 11) to Single-A (14), one row per pitcher,
-          level and season from 2009 (no 2020), with age and league. Saved by `bucco extract
+          level and season from 2006 (no 2020), with age and league. Saved by `bucco extract
           mlb-minor-pitching`, which checks each level's size and the counts.
         meta:
           external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/minor_pitching/*.parquet')"

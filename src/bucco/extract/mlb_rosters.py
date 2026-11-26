@@ -31,7 +31,7 @@ log = logging.getLogger(__name__)
 SOURCE = "mlb_api"
 ROSTER_DIR = CACHE_DIR / "mlb_api" / "rosters"
 SCHEDULE_DIR = CACHE_DIR / "mlb_api" / "schedules"
-FIRST_SEASON = 2012               # the first season with Steamer projections
+FIRST_SEASON = 2009               # first season with complete preseason 40-man rosters in the API
 MIN_PLAYERS_PER_TEAM = 30         # a 40-man roster on Opening Day has close to 40
 
 COLUMNS = ["season", "team_id", "snapshot_date", "mlbam_id", "player_name", "position",
