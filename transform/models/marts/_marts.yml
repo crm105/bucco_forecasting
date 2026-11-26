@@ -260,7 +260,7 @@ models:
 
   - name: minor_batting_seasons
     description: >
-      Minor-league batting by player, level and season (Triple-A to Single-A, 2009 on; the
+      Minor-league batting by player, level and season (Triple-A to Single-A, 2006 on; the
       unaffiliated Mexican League left out), valued
       against the player's own league with that season's MLB run values: batting runs and
       stolen-base runs above the league average. Input to major-league equivalents.
@@ -280,7 +280,7 @@ models:
 
   - name: minor_pitching_seasons
     description: >
-      Minor-league pitching by pitcher, level and season (Triple-A to Single-A, 2009 on; the
+      Minor-league pitching by pitcher, level and season (Triple-A to Single-A, 2006 on; the
       Mexican League left out), valued against the pitcher's own league: FIP-based runs above
       the league average, on the scale of MLB pitching_runs. Input to major-league equivalents.
     data_tests:
@@ -300,7 +300,8 @@ models:
   - name: player_preseason_status
     description: >
       Each player's status on his team's Opening Day 40-man roster: what a forecaster knows about
-      injuries when the season starts. One row per season and player, from 2012; the upcoming
+      injuries when the season starts, and our own projections' preseason rosters. One row per
+      season and player, from 2009 (the first season with complete rosters in the API); the upcoming
       season's is taken on the day of the extract.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
