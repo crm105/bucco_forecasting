@@ -297,6 +297,23 @@ models:
         description: FIP-based runs above the pitcher's league average (positive is better).
         data_tests: [not_null]
 
+  - name: organization_depth
+    description: >
+      Each organization's minor-league depth going into a season: players who played for its
+      affiliates the season before, as batters or pitchers. Added to the Opening Day 40-man
+      rosters for our own projections. From 2007.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id]
+    columns:
+      - name: team_id
+        description: The organization (MLB team id).
+        data_tests: [not_null]
+      - name: player_type
+        data_tests:
+          - accepted_values:
+              values: ['batter', 'pitcher']
+
   - name: player_preseason_status
     description: >
       Each player's status on his team's Opening Day 40-man roster: what a forecaster knows about

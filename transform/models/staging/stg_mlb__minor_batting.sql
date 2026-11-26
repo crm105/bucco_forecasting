@@ -8,6 +8,7 @@ select
     level,
     cast(league_id as integer)   as league_id,
     league_name,
+    cast(team_id as integer)     as team_id,
     cast(mlbam_id as bigint)     as mlbam_id,
     trim(player_name)            as player_name,
     cast(age as integer)         as age,
