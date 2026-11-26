@@ -42,7 +42,7 @@ DIVISIONS = {
 }
 MODEL_SOURCE = {"steamer_optimized": "steamer", "steamer": "steamer", "depth_chart": "zips",
                 "marcel_park_optimized": "marcel_park_fielding",
-                "marcel_staff_optimized": "marcel_staff"}
+                "marcel_staff_optimized": "marcel_staff", "marcel_ml_pitchers": "marcel_ml"}
 # Marcel source -> (aging, what rates are shrunk toward, park-neutral, fielding from Steamer
 # and ZiPS, pitcher innings, availability from Opening Day 40-man status, weight of minor-league
 # PA, rookies from minor-league history, weight of minor-league batters faced[, pitchers' runs
@@ -53,12 +53,14 @@ MARCEL_SETTINGS = {"marcel_park": (True, "fitted", True, False, "marcel", *_NONE
                    "marcel_staff": (True, "fitted", True, True, "baseline", "absolute", 0.5,
                                     True, 0.5, tuple(marcel.COMPONENT_REG_BF[p]
                                                      for p in marcel.COMPONENTS), "mlb")}
-STAFF_OPTIMIZED = {"marcel_staff"}   # sources whose innings come from the staff optimizer
+MARCEL_SETTINGS["marcel_ml"] = MARCEL_SETTINGS["marcel_staff"]
+ML_PITCHERS = {"marcel_ml"}   # sources with learned pitcher innings and rates (ml_pitchers)
+STAFF_OPTIMIZED = {"marcel_staff", "marcel_ml"}   # innings from the staff optimizer
 # lineup optimizer settings by source, as in the models (default: the absolute curve)
-OPTIMIZER_OPTIONS = {"marcel_staff": lo.RELATIVE}
+OPTIMIZER_OPTIONS = {"marcel_staff": lo.RELATIVE, "marcel_ml": lo.RELATIVE}
 # whose preseason rosters Marcel is put on, by source (default Steamer's); the unsigned list is
 # always Steamer's players with no team, less anyone on those rosters
-MARCEL_ROSTERS = {"marcel_staff": "mlb"}
+MARCEL_ROSTERS = {"marcel_staff": "mlb", "marcel_ml": "mlb"}
 UNSIGNED_SOURCE = "steamer"
 SPOTS = ["Rotation", "Bullpen", *lo.POSITIONS]      # rows of the position comparison
 STRONG_RANK = 10          # a spot ranked this high or better is a strength
@@ -339,6 +341,9 @@ def marcel_rows(source: str, season: int, path=DUCKDB_PATH,
     bat_all = bat_all[bat_all["season"] == season].rename(
         columns={"pa": "plate_appearances", "bsr": "bsr_runs"})
     pit_all = pit_all[pit_all["season"] == season]
+    if source in ML_PITCHERS:
+        from bucco.models import ml_pitchers as mlp
+        pit_all = mlp.apply(pit_all, mlp.load_predictions())
     roster = marcel_rosters(MARCEL_ROSTERS.get(source, "steamer"), path)
     roster = roster[roster["season"] == season]
     batters = on_rosters(bat_all, roster, "batter")

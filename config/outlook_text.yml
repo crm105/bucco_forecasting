@@ -170,6 +170,9 @@ source_labels:
   marcel_staff: >-
     Our own Marcel (aging, history-based shrinkage, park-adjusted; fielding from Steamer and
     ZiPS; innings from our staff optimizer)
+  marcel_ml: >-
+    Our own Marcel with learned pitcher innings and rates (aging, history-based shrinkage,
+    park-adjusted; fielding from Steamer and ZiPS; innings from our staff optimizer)
 
 # Sentences that depend on where the projections come from. Each source needs all five:
 # pitching (positions intro), rate and pitchers (leaders note), division (division note),
@@ -219,3 +222,20 @@ source_notes:
       Marcel projection except fielding, which is the average of Steamer's and ZiPS's projected
       defense (Steamer's alone where ZiPS has none). Unsigned pitchers are shown at their own
       baseline innings.
+  marcel_ml:
+    <<: *marcel
+    pitching: >-
+      Pitching is our staff optimizer's share of each team's innings, the same as the forecast
+      uses, with each pitcher's innings and rate from our learned models. Swingmen (at least a
+      tenth of their games started) can pitch in the rotation or the bullpen, and each pitcher is
+      counted in the one he throws most of his innings in
+    rate: "wRC+ is approximate: projected park-neutral batting runs against the league"
+    pitchers: >-
+      innings and WAR after the staff optimizer shares out the team's innings, from learned
+      innings and rates; each pitcher is listed in the role he throws most of his innings in
+    division: "pitching from the staff optimizer"
+    unsigned: >-
+      Players the Steamer file lists with no team are unsigned; every number here is our own
+      projection except fielding, which is the average of Steamer's and ZiPS's projected
+      defense (Steamer's alone where ZiPS has none). Unsigned pitchers are shown at their own
+      baseline innings, with learned rates.

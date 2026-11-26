@@ -386,7 +386,8 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
                      availability: str = "none", milb: float = 0.0,
                      milb_rookies: bool = False, relative_fatigue: bool = False,
                      injury_sims: int = 0, milb_pitching: float = 0.0,
-                     pitcher_components: bool = False, path=DUCKDB_PATH) -> PlayerData:
+                     pitcher_components: bool = False, ml_pitchers: bool = False,
+                     path=DUCKDB_PATH) -> PlayerData:
     """Our own Marcel projections on each team's preseason roster.
 
     Rosters are `roster_source`'s preseason rosters (`marcel_rosters`: Steamer's team
@@ -401,7 +402,9 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
     to each batter's projected PA (lineup_optimizer.RELATIVE) instead of a 600-PA scale.
     `injury_sims`: team WAR as the mean over this many injury draws (bucco.models.injury_sim),
     the draws fitted for each season on earlier ones. `pitcher_components`: pitchers' runs
-    regressed by part (marcel.COMPONENT_REG_BF) instead of as one number."""
+    regressed by part (marcel.COMPONENT_REG_BF) instead of as one number. `ml_pitchers`:
+    pitchers' innings and rates from the learned models' saved predictions
+    (bucco.models.ml_pitchers; run `bucco fit-ml-pitchers` first)."""
     components = (tuple(marcel.COMPONENT_REG_BF[p] for p in marcel.COMPONENTS)
                   if pitcher_components else None)
     batters, pitchers = marcel_projections(aging, prior, park, fielding, innings,
@@ -415,6 +418,9 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
                            "from marts.team_matchups").df()
     batters = on_rosters(batters, roster, "batter")
     pitchers = on_rosters(pitchers, roster, "pitcher")
+    if ml_pitchers:
+        from bucco.models import ml_pitchers as mlp
+        pitchers = mlp.apply(pitchers, mlp.load_predictions())
     if park_fit:
         batters = with_park_fit(batters, path=path)
     return PlayerData(batters, pitchers, positions, source="Marcel", playing_time=playing_time,
@@ -454,6 +460,29 @@ def make_marcel_staff_optimized_model() -> DepthChartModel:
                                             milb_pitching=mle.PITCHER_MILB_WEIGHT,
                                             pitcher_components=True, roster_source="mlb"),
                            name="marcel_staff_optimized")
+
+
+STAFF_SETTINGS = {"aging": True, "prior": "fitted", "park": True, "fielding": True,
+                  "innings": "baseline", "pitcher_playing_time": "optimized",
+                  "availability": "absolute", "milb": mle.MILB_WEIGHT, "milb_rookies": True,
+                  "relative_fatigue": True, "milb_pitching": mle.PITCHER_MILB_WEIGHT,
+                  "pitcher_components": True, "roster_source": "mlb"}
+
+
+def staff_projection_settings() -> tuple:
+    """`marcel_projections` arguments of marcel_staff_optimized, in order."""
+    s = STAFF_SETTINGS
+    return (s["aging"], s["prior"], s["park"], s["fielding"], s["innings"], s["availability"],
+            s["milb"], s["milb_rookies"], s["milb_pitching"],
+            tuple(marcel.COMPONENT_REG_BF[p] for p in marcel.COMPONENTS), s["roster_source"])
+
+
+def make_marcel_ml_pitchers_model() -> DepthChartModel:
+    """Factory for the registry: `marcel_staff_optimized` with pitchers' innings and rates from
+    the learned models (bucco.models.ml_pitchers), through the staff optimizer; hitters as in
+    marcel_staff_optimized."""
+    return DepthChartModel(load_marcel_data("optimized", ml_pitchers=True, **STAFF_SETTINGS),
+                           name="marcel_ml_pitchers")
 
 
 def make_marcel_parkfit_model() -> DepthChartModel:
