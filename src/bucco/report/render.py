@@ -79,7 +79,8 @@ def render_html(data: dict, text: dict | None = None) -> str:
     as_of = data["as_of"]
     board_rows = "".join(
         f"<tr><td>{escape(str(name))}{' (shown)' if name == data['model'] else ''}</td>"
-        f"<td>{r.mae:.1f}</td><td>{r.rmse:.1f}</td><td>{r.cover_80 * 100:.0f}%</td></tr>"
+        f"<td>{int(r.first_season)}</td><td>{r.mae:.1f}</td><td>{r.rmse:.1f}</td>"
+        f"<td>{r.rmse_shared:.2f}</td><td>{r.cover_80 * 100:.0f}%</td></tr>"
         for name, r in board.iterrows())
 
     timeline = ""
@@ -120,7 +121,8 @@ def render_html(data: dict, text: dict | None = None) -> str:
 <h2>{fill(text['trust_heading'])}</h2>
 <p>{fill(text['trust_intro'], model_label=model_label,
          first_season=data['first_scored_season'], last_season=data['last_scored_season'])}</p>
-<table><tr><th>Model</th><th>Typical miss (wins)</th><th>RMSE (wins)</th>
+<table><tr><th>Model</th><th>Scored from</th><th>Typical miss (wins)</th><th>RMSE (wins)</th>
+<th>RMSE, {data['shared_first']}–{data['shared_last']}</th>
 <th>Results inside the 80% range</th></tr>{board_rows}</table>
 <p class="muted">{fill(text['table_note'])}</p>
 

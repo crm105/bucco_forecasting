@@ -135,3 +135,19 @@ def test_edited_text_appears_in_report(db, tmp_path):
     edited.write_text(TEXT_PATH.read_text().replace("The whole league", "Around the league"))
     html = render.render_html(build_report_data(model="last_year", path=db), load_text(edited))
     assert "Around the league" in html and "The whole league" not in html
+
+
+def test_models_are_ranked_on_the_seasons_they_all_cover():
+    from bucco.report.data import board, shared_seasons
+
+    def rows(model, seasons, miss):
+        return [{"model": model, "season": s, "team_id": t, "pred_win_pct": 0.5 + miss(s) / 162,
+                 "actual_win_pct": 0.5, "sd_win_pct": 0.06} for s in seasons for t in (1, 2)]
+    # "early" looks better overall only because its extra early seasons were easy
+    results = pd.DataFrame(rows("early", range(2009, 2014), lambda s: 1 if s < 2012 else 9)
+                           + rows("late", range(2012, 2014), lambda s: 8))
+    assert shared_seasons(results) == [2012, 2013]
+    table = board(results)
+    assert table.loc["early", "rmse"] < table.loc["late", "rmse"]
+    assert list(table.index) == ["late", "early"]
+    assert table.loc["early", "first_season"] == 2009

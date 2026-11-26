@@ -41,9 +41,28 @@ def load_forecasts(season: int, path=DUCKDB_PATH) -> pd.DataFrame:
             from error
 
 
+def shared_seasons(results: pd.DataFrame) -> list[int]:
+    """Full seasons every model in `results` was scored on."""
+    full = results[~results["season"].isin(metrics.SHORTENED_SEASONS)]
+    per_model = [set(g["season"]) for _, g in full.groupby("model")]
+    return sorted(set.intersection(*per_model)) if per_model else []
+
+
+def board(results: pd.DataFrame) -> pd.DataFrame:
+    """The leaderboard with each model's first scored season and its RMSE on the seasons every
+    model shares (`rmse_shared`), best first by that: models cover different seasons, and early
+    seasons are easier or harder, so only the shared ones compare like with like."""
+    table = metrics.by_model(results)
+    full = results[~results["season"].isin(metrics.SHORTENED_SEASONS)]
+    table["first_season"] = full.groupby("model")["season"].min()
+    shared = full[full["season"].isin(shared_seasons(results))]
+    table["rmse_shared"] = metrics.by_model(shared)["rmse"]
+    return table.sort_values("rmse_shared")
+
+
 def best_model(results: pd.DataFrame) -> str:
-    """Lowest RMSE on the leaderboard (2020 excluded)."""
-    return str(metrics.by_model(results).index[0])
+    """Lowest RMSE on the seasons every model shares (2020 excluded)."""
+    return str(board(results).index[0])
 
 
 def git_commit() -> str | None:
@@ -132,7 +151,8 @@ def build_report_data(model: str | None = None, season: int | None = None,
         actual=pirates_past["actual_win_pct"] * GAMES)
     pirates_past["error"] = pirates_past["predicted"] - pirates_past["actual"]
 
-    board = metrics.by_model(results)
+    table = board(results)
+    shared = shared_seasons(results)
     return {
         "season": season, "model": model, "as_of": as_of, "today": today.isoformat(),
         "opening_day": opening.isoformat() if opening else None,
@@ -146,7 +166,8 @@ def build_report_data(model: str | None = None, season: int | None = None,
             "p_beat_last": prob_above(last_wins, float(pirates["wins"]), sd_wins),
         },
         "timeline": timeline, "previous": previous,
-        "leaderboard": board, "first_scored_season": int(
+        "leaderboard": table, "shared_first": shared[0], "shared_last": shared[-1],
+        "first_scored_season": int(
             results.loc[~results["season"].isin(metrics.SHORTENED_SEASONS), "season"].min()),
         "last_scored_season": int(results["season"].max()),
         "pirates_past": pirates_past[["season", "predicted", "actual", "error"]],
