@@ -52,7 +52,8 @@ REST_BONUS = 0.5            # share of the better rate kept below the baseline
 REFERENCE_AGE = 27.0
 SEGMENT_IP = 5.0
 MAX_SP_IP = 220.0           # most innings for a pitcher who can start
-MAX_RP_IP = 100.0           # most innings for one who cannot
+MAX_RP_IP = 100.0           # most innings for one who cannot start
+RELIEF_FLOOR_IP = 10.0      # relief innings even a pure starter can throw (long relief)
 ROTATION_MIN_SHARE = 0.1    # weighted share of games started to be able to start (swingmen
                             # included; 0.5 left 52 rotation IP a team to replacement level)
 MIN_BASE_IP = 5.0           # baselines are floored here, so the curve stays finite
@@ -137,7 +138,14 @@ def optimize_staff(pitchers: pd.DataFrame, rep_sp: float, rep_rp: float, runs_pe
         row[nx + i * k: nx + (i + 1) * k] = -1.0
         a_eq.append(row)
         b_eq.append(0.0)
-    bounds = [(0, None)] * nx + [(0, step)] * ns + [(0, None)] * 2
+    # Relief innings follow his role: at most MAX_RP_IP x (1 - start share) + RELIEF_FLOOR_IP.
+    # Swapping two pitchers between the rotation and the bullpen barely changes team WAR (the
+    # replacement levels and the starting penalty cancel), so without this the solver splits
+    # pitchers between pools arbitrarily (Skenes 180 innings mostly in relief). What keeps
+    # starters in rotations is stamina, which the rates do not see.
+    relief_cap = MAX_RP_IP * (1.0 - share) + RELIEF_FLOOR_IP
+    bounds = ([(0, relief_cap[i] if pool == "RP" else None) for i, pool in x_index]
+              + [(0, step)] * ns + [(0, None)] * 2)
     res = linprog(c, A_eq=np.array(a_eq), b_eq=np.array(b_eq), bounds=bounds, method="highs")
     if not res.success:
         raise RuntimeError(f"staff optimization failed: {res.message}")

@@ -69,7 +69,7 @@ def external_def_rates(sources: tuple[str, ...] = FIELDING_SOURCES,
 def marcel_projections(aging: bool = False, prior: str = "league", park: bool = False,
                        fielding: bool = False, innings: str = "marcel",
                        availability: str = "none", milb: float = 0.0,
-                       milb_rookies: bool = False,
+                       milb_rookies: bool = False, milb_pitching: float = 0.0,
                        path=DUCKDB_PATH) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Marcel projections (bucco.models.marcel) for every player with MLB history in the three
     seasons before each target season, on any team or none: (batters, pitchers). `aging`
@@ -83,7 +83,9 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
     scale the playing time of players on a preseason roster by their Opening Day 40-man status
     (bucco.models.availability), "relative" to active 40-man players or "absolute". `milb`:
     weight of minor-league PA (major-league equivalents, bucco.models.milb) in batters' history
-    (0: none); `milb_rookies` also projects batters with minor-league but no MLB history."""
+    (0: none); `milb_rookies` also projects batters with minor-league but no MLB history.
+    `milb_pitching`: the same for pitchers (weight of a minor-league batter faced; rookies
+    included when above 0), with minor-league innings in the baseline-innings line."""
     if not path.exists():
         raise RuntimeError(f"{path} not found. Run `bucco extract all` and `bucco build` first.")
     with duckdb.connect(str(path), read_only=True) as con:
@@ -98,6 +100,8 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
     runs_col = "pitching_runs_neutral" if park else "pitching_runs"
     if milb:
         bat_frame = with_milb(bat_frame, milb_rookies, path)
+    if milb_pitching:
+        pit_frame = with_milb_pitching(pit_frame, path)
     bat_curves = pit_curves = None
     if aging:
         bat_curves = marcel.age_curves(bat_history, off_col, "pa", bat_frame["season"])
@@ -108,7 +112,7 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
         batters = marcel.apply_external_def(batters, external_def_rates(path=path), league)
     pit_frame = pit_frame.reset_index(drop=True)
     pitchers = marcel.project_pitchers(pit_frame, league, curves=pit_curves, prior=prior,
-                                       park=park)
+                                       park=park, milb_weight=milb_pitching)
     if innings == "baseline":
         roster = marcel_rosters(path=path)
         keys = set(zip(roster.loc[roster["player_type"] == "pitcher", "season"],
@@ -138,7 +142,12 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
         for col in ("pa", "off_runs", "def_runs", "fld_runs", "bsr", "war"):
             batters[col] = batters[col] * f
         batters["availability"] = f
-        f = _availability_factor(pitchers, "ip", pit_real, roster, "pitcher", status, relative)
+        rookies = set()
+        if "milb_rookie" in pit_frame:
+            r = pit_frame[pit_frame["milb_rookie"].fillna(False).astype(bool)]
+            rookies = set(zip(r["season"], r["mlbam_id"], strict=True))
+        f = _availability_factor(pitchers, "ip", pit_real, roster, "pitcher", status, relative,
+                                 exempt=rookies)
         pitchers = marcel.rescale_innings(pitchers, pitchers["ip"] * f)
         pitchers["availability"] = f
     return batters, pitchers
@@ -186,12 +195,67 @@ def injury_samples(batters: pd.DataFrame, pitchers: pd.DataFrame,
             for s in sorted(set(batters["season"]) | set(pitchers["season"]))}
 
 
+def with_milb_pitching(pit_frame: pd.DataFrame, path=DUCKDB_PATH) -> pd.DataFrame:
+    """pitcher_projection_frame with translated minor-league history (y1-y3_milb_bf, _runs,
+    _outs, _gs, _games; 0 where none) and rows for pitchers with minor-league but no MLB
+    history (bucco.models.milb, drops scaled by PITCHER_DROP_SCALE), with the inputs of rookies'
+    baseline innings (bucco.models.innings.ROOKIE_FEATURES)."""
+    with duckdb.connect(str(path), read_only=True) as con:
+        minor = con.sql("select season, mlbam_id, player_name, age, level, bf, pitching_runs, "
+                        "outs, gs, games from marts.minor_pitching_seasons").df()
+        status = con.sql("select season, mlbam_id, il_group "
+                         "from marts.player_preseason_status").df()
+        mlb = con.sql("select season, mlbam_id, bf, pitching_runs_neutral as pitching_runs, "
+                      "outs as target_outs, bf as target_bf, gs as target_gs, "
+                      "games as target_games, pitching_runs as target_pitching_runs, "
+                      "pitching_runs_neutral as target_pitching_runs_neutral "
+                      "from marts.player_pitching_seasons").df()
+    history = mle.milb_history(minor, mlb, pit_frame["season"], volume="bf",
+                               runs="pitching_runs", extra=("outs", "gs", "games"),
+                               drop_scale=mle.PITCHER_DROP_SCALE)
+    upcoming = set(pit_frame.loc[pit_frame["is_upcoming_season"].astype(bool), "season"])
+    targets = mlb.drop(columns=["bf", "pitching_runs"])
+    new = mle.rookie_rows(pit_frame, history, targets, upcoming, volume="bf",
+                          min_volume=mle.ROOKIE_MIN_BF, pitchers=True)
+    frame = pd.concat([pit_frame.assign(milb_rookie=False), new], ignore_index=True)
+    cols = [c for c in history.columns if c.startswith("y")]
+    frame = frame.merge(history[["season", "mlbam_id", *cols]], on=["season", "mlbam_id"],
+                        how="left")
+    frame[cols] = frame[cols].fillna(0.0)
+    # last season's minor-league innings by level and role, for rookies' baseline innings
+    m = minor.assign(season=minor["season"] + 1, ip=minor["outs"] / 3.0)
+    share = (m["gs"] / m["games"].where(m["games"] > 0)).fillna(0.0)
+    level = m["level"].map({"AAA": "aaa", "AA": "aa"}).fillna("low")
+    m = m.assign(sp=m["ip"] * share, rp=m["ip"] * (1 - share), level=level)
+    wide = m.pivot_table(index=["season", "mlbam_id"], columns="level", values=["sp", "rp"],
+                         aggfunc="sum").fillna(0.0)
+    feats = pd.DataFrame(index=wide.index)
+    for lv in ("aaa", "aa"):
+        for role in ("sp", "rp"):
+            feats[f"m1_{lv}_{role}"] = wide[role].get(lv, 0.0)
+    feats["m1_low"] = sum(wide[role]["low"] for role in ("sp", "rp") if "low" in wide[role])
+    frame = frame.merge(feats.reset_index(), on=["season", "mlbam_id"], how="left")
+    m1 = list(feats.columns)
+    frame[m1] = frame[m1].fillna(0.0)
+    # Opening Day 40-man status, for rookies' baseline innings
+    st = status.assign(on_40=(status["il_group"] == "none").astype(float),
+                       il_40=(status["il_group"] != "none").astype(float))
+    frame = frame.merge(st[["season", "mlbam_id", "on_40", "il_40"]], on=["season", "mlbam_id"],
+                        how="left").fillna({"on_40": 0.0, "il_40": 0.0})
+    return frame.copy()            # one block (the merges leave it fragmented)
+
+
 def _availability_factor(proj: pd.DataFrame, volume: str, frame: pd.DataFrame,
                          roster: pd.DataFrame, player_type: str, status: pd.DataFrame,
-                         relative: bool) -> pd.Series:
+                         relative: bool, exempt: set | None = None) -> pd.Series:
     """Availability factor per projection row: fitted and applied only for players on a
-    preseason roster (others, such as unsigned free agents, get 1)."""
+    preseason roster (others, such as unsigned free agents, get 1). `exempt` (season, mlbam_id)
+    pairs are left out of both: rookie pitchers, whose baseline innings already use their
+    40-man status."""
     keys = roster.loc[roster["player_type"] == player_type, ["season", "mlbam_id"]]
+    if exempt:
+        keys = keys[[k not in exempt for k in zip(keys["season"], keys["mlbam_id"],
+                                                 strict=True)]]
     rows = proj[["season", "mlbam_id", volume]].reset_index().merge(
         keys.drop_duplicates(), on=["season", "mlbam_id"]).merge(
         frame[["season", "mlbam_id", "actual"]].drop_duplicates(["season", "mlbam_id"]),
@@ -261,7 +325,8 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
                      innings: str = "marcel", pitcher_playing_time: str = "depth_chart",
                      availability: str = "none", milb: float = 0.0,
                      milb_rookies: bool = False, relative_fatigue: bool = False,
-                     injury_sims: int = 0, path=DUCKDB_PATH) -> PlayerData:
+                     injury_sims: int = 0, milb_pitching: float = 0.0,
+                     path=DUCKDB_PATH) -> PlayerData:
     """Our own Marcel projections on each team's preseason roster.
 
     Rosters are the team assignments in `roster_source`'s player files (players listed for
@@ -276,7 +341,8 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
     `injury_sims`: team WAR as the mean over this many injury draws (bucco.models.injury_sim),
     the draws fitted for each season on earlier ones."""
     batters, pitchers = marcel_projections(aging, prior, park, fielding, innings,
-                                           availability, milb, milb_rookies, path=path)
+                                           availability, milb, milb_rookies, milb_pitching,
+                                           path=path)
     roster = marcel_rosters(roster_source, path)
     with duckdb.connect(str(path), read_only=True) as con:
         positions = con.sql("select season, mlbam_id, position, games "
@@ -346,13 +412,14 @@ def make_marcel_staff_optimized_model() -> DepthChartModel:
     """Factory for the registry: `marcel_park_optimized` with baseline innings
     (bucco.models.innings) shared out by the staff optimizer (bucco.models.staff_optimizer), and
     playing time scaled by Opening Day 40-man status (bucco.models.availability), and batters'
-    minor-league history (major-league equivalents, bucco.models.milb), rookies included; batters'
-    fatigue curve relative to their projected PA (lineup_optimizer.RELATIVE)."""
+    and pitchers' minor-league history (major-league equivalents, bucco.models.milb), rookies
+    included; batters' fatigue curve relative to their projected PA (lineup_optimizer.RELATIVE)."""
     return DepthChartModel(load_marcel_data("optimized", aging=True, prior="fitted", park=True,
                                             fielding=True, innings="baseline",
                                             pitcher_playing_time="optimized",
                                             availability="absolute", milb=mle.MILB_WEIGHT,
-                                            milb_rookies=True, relative_fatigue=True),
+                                            milb_rookies=True, relative_fatigue=True,
+                                            milb_pitching=mle.PITCHER_MILB_WEIGHT),
                            name="marcel_staff_optimized")
 
 

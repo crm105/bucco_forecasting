@@ -25,6 +25,13 @@ SHARE_WEIGHTS = (3.0, 2.0, 1.0)
 PEAK_AGE = 27.0             # ages are centered here
 MIN_TRAIN_ROWS = 500        # earlier rostered pitcher-seasons needed to fit the line
 FEATURES = ("1", "ip1", "ip2", "ip3", "share", "share_ip1", "a", "a2", "a_ip1", "a2_ip1", "a_sp")
+# Rookies (no MLB history; rows marked milb_rookie) get their own line, on last season's
+# minor-league innings by level and role (columns m1_<level>_<role>, from the loader) and age:
+# a Triple-A starter is far likelier to reach MLB than a Single-A reliever. Opening Day 40-man
+# status is the strongest signal (on_40, il_40: on the 40-man roster, active or injured), also
+# on its own for upper-level starters (on_40_sp); so rookies' availability is in this line.
+ROOKIE_FEATURES = ("1", "m1_aaa_sp", "m1_aaa_rp", "m1_aa_sp", "m1_aa_rp", "m1_low", "a", "a2",
+                   "on_40", "il_40", "on_40_sp")
 
 
 def ip_features(frame: pd.DataFrame) -> pd.DataFrame:
@@ -47,6 +54,11 @@ def ip_features(frame: pd.DataFrame) -> pd.DataFrame:
     out["a"], out["a2"] = a, a ** 2
     out["a_ip1"], out["a2_ip1"] = a * out["ip1"], a ** 2 * out["ip1"]
     out["a_sp"] = a * sp
+    for col in ROOKIE_FEATURES:
+        if col.startswith(("m1_", "on_40", "il_40")) and col != "on_40_sp":
+            out[col] = f[col].fillna(0.0).astype(float) if col in f else 0.0
+    out["on_40_sp"] = out["on_40"] * (out["m1_aaa_sp"] + out["m1_aa_sp"])
+    out["rookie"] = f["milb_rookie"].fillna(False).astype(bool) if "milb_rookie" in f else False
     if "target_outs" in f:
         out["target_ip"] = f["target_outs"] / 3.0
     return out
@@ -56,21 +68,24 @@ def baseline_ip(frame: pd.DataFrame, rostered: pd.Series,
                 shortened: set[int] | frozenset[int] = frozenset({2020})) -> pd.Series:
     """Baseline innings for every row of pitcher_projection_frame, each target season's from a
     line fitted only on earlier seasons' rostered pitchers (`rostered`: a boolean per row).
-    Seasons with fewer than MIN_TRAIN_ROWS earlier rows get NaN (callers fall back)."""
+    Rookies (`milb_rookie` rows) get a separate line on ROOKIE_FEATURES, fitted on earlier
+    rostered rookies. Seasons with fewer than MIN_TRAIN_ROWS earlier rows get NaN (callers
+    fall back)."""
     x = ip_features(frame)
-    cols = list(FEATURES)
     usable = (rostered.to_numpy() & x["target_ip"].notna().to_numpy()
               & ~x["season"].isin(shortened).to_numpy())
+    rookie = x["rookie"].to_numpy()
     out = np.full(len(x), np.nan)
-    coef = None
-    for season in sorted(x["season"].unique()):
-        train = usable & (x["season"] < season).to_numpy()
-        if train.sum() >= MIN_TRAIN_ROWS:
-            coef, *_ = np.linalg.lstsq(x.loc[train, cols].to_numpy(),
-                                       x.loc[train, "target_ip"].to_numpy(), rcond=None)
-        if coef is not None:
-            rows = (x["season"] == season).to_numpy()
-            out[rows] = x.loc[rows, cols].to_numpy() @ coef
+    for group, cols in ((~rookie, list(FEATURES)), (rookie, list(ROOKIE_FEATURES))):
+        coef = None
+        for season in sorted(x["season"].unique()):
+            train = usable & group & (x["season"] < season).to_numpy()
+            if train.sum() >= MIN_TRAIN_ROWS:
+                coef, *_ = np.linalg.lstsq(x.loc[train, cols].to_numpy(),
+                                           x.loc[train, "target_ip"].to_numpy(), rcond=None)
+            if coef is not None:
+                rows = group & (x["season"] == season).to_numpy()
+                out[rows] = x.loc[rows, cols].to_numpy() @ coef
     return pd.Series(np.clip(out, 0.0, None), index=frame.index)
 
 

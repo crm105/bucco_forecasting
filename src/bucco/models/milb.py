@@ -36,6 +36,9 @@ MIN_PAIRS = 100              # pairs a step needs before it is used
 ROOKIE_MIN_PA = 100.0        # minor-league PA over three seasons to project a player with no MLB
 DROP_SCALE = 0.5             # share of the fitted drops used (see the module notes)
 MILB_WEIGHT = 0.5            # Marcel's weight for a minor-league PA (an MLB PA is 1)
+ROOKIE_MIN_BF = 100.0        # minor-league batters faced over three seasons, for pitchers
+PITCHER_DROP_SCALE = 0.5     # as DROP_SCALE, for pitchers (chosen at player level, see milb.md)
+PITCHER_MILB_WEIGHT = 0.5    # Marcel's weight for a minor-league batter faced
 
 
 def fit_drops(lines: pd.DataFrame, before: int) -> dict[str, float]:
@@ -61,61 +64,78 @@ def fit_drops(lines: pd.DataFrame, before: int) -> dict[str, float]:
     return drops
 
 
-def milb_history(minor: pd.DataFrame, mlb: pd.DataFrame, targets) -> pd.DataFrame:
+def milb_history(minor: pd.DataFrame, mlb: pd.DataFrame, targets, volume: str = "pa",
+                 runs: str = "off_runs", extra: tuple[str, ...] = (),
+                 drop_scale: float | None = None) -> pd.DataFrame:
     """Translated minor-league history for each target season: season (the target), mlbam_id,
-    y1-y3_milb_pa and y1-y3_milb_runs (MLE runs, seasons t-1 to t-3), milb_age (his age in the
-    target season, from the minor-league lines) and milb_name.
+    y1-y3_milb_<volume> and y1-y3_milb_runs (MLE runs, seasons t-1 to t-3), the same for each of
+    `extra` (summed as they are, e.g. outs, starts), milb_age (his age in the target season, from
+    the minor-league lines) and milb_name.
 
-    minor: marts.minor_batting_seasons (season, mlbam_id, player_name, age, level, pa, off_runs).
-    mlb: MLB batting (season, mlbam_id, pa, off_runs: park-neutral Off), for the translation."""
-    lines = pd.concat([minor[["season", "mlbam_id", "level", "pa", "off_runs"]],
-                       mlb[["season", "mlbam_id", "pa", "off_runs"]].assign(level="MLB")])
+    Batters: minor = marts.minor_batting_seasons (pa, off_runs), mlb = MLB batting (pa, off_runs:
+    park-neutral Off). Pitchers: volume "bf", runs "pitching_runs" (FIP-based runs above the
+    league), extra ("outs", "gs", "games"). The drops are fitted on runs per unit of volume."""
+    scale = DROP_SCALE if drop_scale is None else drop_scale
+    lines = pd.concat([minor[["season", "mlbam_id", "level", volume, runs]],
+                       mlb[["season", "mlbam_id", volume, runs]].assign(level="MLB")])
+    lines = lines.rename(columns={volume: "pa", runs: "off_runs"})
     out = []
     for t in sorted({int(s) for s in targets}):
         drops = fit_drops(lines, t)
         recent = minor[minor["season"].between(t - 3, t - 1)].copy()
-        recent["drop"] = recent["level"].map(drops).astype(float) * DROP_SCALE
+        recent["drop"] = recent["level"].map(drops).astype(float) * scale
         recent = recent[recent["drop"].notna()]
         if recent.empty:
             continue
         recent["k"] = t - recent["season"]
-        recent["mle_runs"] = recent["off_runs"] + recent["drop"] * recent["pa"]
-        wide = recent.pivot_table(index="mlbam_id", columns="k", values=["pa", "mle_runs"],
+        recent["mle_runs"] = recent[runs] + recent["drop"] * recent[volume]
+        values = [volume, "mle_runs", *extra]
+        wide = recent.pivot_table(index="mlbam_id", columns="k", values=values,
                                   aggfunc="sum").fillna(0.0)
         frame = pd.DataFrame(index=wide.index)
         for k in (1, 2, 3):
-            frame[f"y{k}_milb_pa"] = wide["pa"].get(k, 0.0)
-            frame[f"y{k}_milb_runs"] = wide["mle_runs"].get(k, 0.0)
+            for v in values:
+                name = "runs" if v == "mle_runs" else v
+                frame[f"y{k}_milb_{name}"] = wide[v].get(k, 0.0)
         ages = (recent["age"] + recent["k"]).groupby(recent["mlbam_id"]).max()
         names = recent.sort_values("season").groupby("mlbam_id")["player_name"].last()
         frame["milb_age"], frame["milb_name"] = ages, names
         out.append(frame.reset_index().assign(season=t))
-    cols = ["season", "mlbam_id", *[f"y{k}_milb_{c}" for k in (1, 2, 3) for c in ("pa", "runs")],
+    cols = ["season", "mlbam_id",
+            *[f"y{k}_milb_{c}" for k in (1, 2, 3) for c in (volume, "runs", *extra)],
             "milb_age", "milb_name"]
     return pd.concat(out, ignore_index=True)[cols] if out else pd.DataFrame(columns=cols)
 
 
 def rookie_rows(frame: pd.DataFrame, history: pd.DataFrame, mlb_targets: pd.DataFrame,
-                upcoming: set[int]) -> pd.DataFrame:
-    """batter_projection_frame-like rows for players with minor-league history (ROOKIE_MIN_PA
-    or more over three seasons) but no row in the frame (no MLB history in three seasons): no MLB
-    seasons, age and name from the minor-league lines, and their target-season MLB PA and Off
-    (0 if they did not play; unknown for an upcoming season)."""
+                upcoming: set[int], volume: str = "pa", min_volume: float = ROOKIE_MIN_PA,
+                pitchers: bool = False) -> pd.DataFrame:
+    """Projection-frame-like rows for players with minor-league history (`min_volume` or more
+    of `volume` over three seasons) but no row in the frame (no MLB history in three seasons):
+    no MLB seasons, age and name from the minor-league lines, and their target-season MLB
+    columns from `mlb_targets` (every column but season and mlbam_id; 0 if they did not play,
+    unknown for an upcoming season). Batter frames get is_pitcher false; pitcher frames
+    (`pitchers`) get every MLB season count set to 0."""
     known = set(zip(frame["season"], frame["mlbam_id"], strict=True))
     h = history[[(s, m) not in known for s, m in zip(history["season"], history["mlbam_id"],
                                                     strict=True)]]
-    h = h[h[[f"y{k}_milb_pa" for k in (1, 2, 3)]].sum(axis=1) >= ROOKIE_MIN_PA]
+    h = h[h[[f"y{k}_milb_{volume}" for k in (1, 2, 3)]].sum(axis=1) >= min_volume]
     rows = pd.DataFrame({"season": h["season"].to_numpy(), "mlbam_id": h["mlbam_id"].to_numpy(),
                          "player_name": h["milb_name"].to_numpy(), "age": h["milb_age"].to_numpy(),
-                         "is_pitcher": False, "last_team_id": np.nan})
+                         "last_team_id": np.nan})
+    if not pitchers:
+        rows["is_pitcher"] = False
     for col in frame.columns:
-        if col.startswith("y") and col[1] in "123" and col not in rows:
-            rows[col] = 0.0 if col.endswith(("_pa", "_team_games")) else np.nan
+        if col.startswith("y") and col[1] in "123" and col not in rows and "_milb_" not in col:
+            numeric = pd.api.types.is_numeric_dtype(frame[col])
+            count = col.endswith(("_pa", "_team_games")) or (pitchers and numeric)
+            rows[col] = 0.0 if count else np.nan
     for k in (1, 2, 3):
         rows[f"y{k}_team_games"] = 162.0
     t = rows[["season", "mlbam_id"]].merge(mlb_targets, on=["season", "mlbam_id"], how="left")
     done = ~rows["season"].isin(upcoming)
-    for col in ("target_pa", "target_off_runs", "target_off_runs_neutral"):
+    for col in [c for c in mlb_targets.columns if c not in ("season", "mlbam_id")]:
         rows[col] = t[col].where(~done, t[col].fillna(0.0)).to_numpy()
     rows["is_upcoming_season"] = ~done
+    rows["milb_rookie"] = True
     return rows

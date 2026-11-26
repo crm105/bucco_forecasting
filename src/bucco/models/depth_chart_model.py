@@ -61,6 +61,16 @@ BATTER_COLUMNS = ["season", "team_id", "mlbam_id", "player_name", "pa", "war", "
 PITCHER_COLUMNS = ["season", "team_id", "mlbam_id", "player_name", "ip", "war", "gs"]
 
 
+def pitcher_rate(pitchers: pd.DataFrame) -> pd.Series:
+    """Runs above average per inning: the projection's own rate (Marcel's `runs_per_ip`) where
+    it has one, which stays known for a pitcher projected for 0 innings; else runs / ip."""
+    ip = pitchers["ip"].astype(float)
+    derived = (pitchers["runs"] / ip.where(ip > 0)).fillna(0.0)
+    if "runs_per_ip" in pitchers:
+        return pitchers["runs_per_ip"].fillna(derived)
+    return derived
+
+
 class PlayerData:
     """Projected batters, pitchers and prior-season positions, with team WAR cached by season.
 
@@ -180,7 +190,7 @@ class PlayerData:
         bat = bat.merge(rows[["mlbam_id", "team_id", "age"]].drop_duplicates(["mlbam_id", "team_id"]),
                         on=["mlbam_id", "team_id"], how="left")
         ip = pitchers["ip"].astype(float)
-        pit = pitchers.assign(rate=(pitchers["runs"] / ip.where(ip > 0)).fillna(0.0), base_ip=ip,
+        pit = pitchers.assign(rate=pitcher_rate(pitchers), base_ip=ip,
                               starter=pitchers["start_share"] >= ROTATION_MIN_SHARE)
         res = injury_sim.simulate_season(bat, pit, self.injury_samples.get(season, {}), rep, rpw,
                                          options=self.optimizer_options,
@@ -194,7 +204,7 @@ class PlayerData:
         from bucco.models.staff_optimizer import optimize_staffs
 
         ip = pitchers["ip"].astype(float)
-        rows = pitchers.assign(rate=(pitchers["runs"] / ip.where(ip > 0)).fillna(0.0),
+        rows = pitchers.assign(rate=pitcher_rate(pitchers),
                                base_ip=ip)
         allocations = optimize_staffs(rows, **self.staff_options)
         return allocations.groupby("team_id")["war"].sum()

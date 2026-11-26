@@ -84,3 +84,54 @@ def test_minor_league_history_joins_marcels_weighted_rate():
     assert out["off_runs"] == pytest.approx(rate * out["pa"])
     assert not out["has_position"]
     assert marcel.project_batters(f, league).iloc[0]["off_runs"] == 0.0     # weight 0: ignored
+
+
+# ---- pitchers ----------------------------------------------------------------------------
+def test_pitcher_history_carries_extra_counts_and_uses_its_own_drop_scale():
+    lines = _lines().rename(columns={"pa": "bf", "off_runs": "pitching_runs"})
+    mlb = lines[lines["level"] == "MLB"]
+    other = lines[lines["level"] != "MLB"].assign(player_name="x", age=25, outs=0, gs=0, games=0)
+    me = pd.DataFrame({"season": [2018], "mlbam_id": [7], "player_name": ["P"], "age": [22],
+                       "level": ["AAA"], "bf": [400.0], "pitching_runs": [4.0], "outs": [300],
+                       "gs": [18], "games": [20]})
+    h = milb.milb_history(pd.concat([other, me]), mlb, [2019], volume="bf",
+                          runs="pitching_runs", extra=("outs", "gs", "games"), drop_scale=0.25)
+    row = h[h["mlbam_id"] == 7].iloc[0]
+    assert (row["y1_milb_bf"], row["y1_milb_outs"], row["y1_milb_gs"]) == (400.0, 300.0, 18.0)
+    assert row["y1_milb_runs"] == pytest.approx(4.0 - 0.02 * 0.25 * 400.0)
+
+
+def test_pitcher_rookie_rows_zero_their_mlb_counts_and_are_marked():
+    frame = pd.DataFrame({"season": [2019], "mlbam_id": [1], "y1_outs": [300.0], "y1_bf": [400.0],
+                          "y1_role": ["SP"], "y1_team_games": [162.0]})
+    history = pd.DataFrame({"season": [2019], "mlbam_id": [2], "y1_milb_bf": [500.0],
+                            "y2_milb_bf": 0.0, "y3_milb_bf": 0.0, "milb_age": [23],
+                            "milb_name": ["b"]})
+    targets = pd.DataFrame({"season": [2019], "mlbam_id": [2], "target_outs": [90.0]})
+    rows = milb.rookie_rows(frame, history, targets, upcoming=set(), volume="bf",
+                            min_volume=100.0, pitchers=True)
+    r = rows.iloc[0]
+    assert (r["y1_outs"], r["y1_bf"], r["target_outs"]) == (0.0, 0.0, 90.0)
+    assert pd.isna(r["y1_role"]) and r["milb_rookie"] and "is_pitcher" not in rows
+
+
+def test_minor_league_history_joins_a_pitchers_rate_and_role():
+    league = pd.DataFrame({"season": [2018], "runs_per_win": [10.0],
+                           "batting_replacement_runs_per_pa": [0.03],
+                           "pitching_replacement_runs_per_ip": [0.1],
+                           "sp_replacement_runs_per_ip": [0.12],
+                           "rp_replacement_runs_per_ip": [0.05], "runs_per_pa": [0.12],
+                           "era": [4.0]})
+    row = {"season": 2019, "mlbam_id": 1, "player_name": "A", "age": 24, "last_team_id": 1}
+    for k in (1, 2, 3):
+        row |= {f"y{k}_team_games": 162.0, f"y{k}_bf": 0.0, f"y{k}_outs": 0.0, f"y{k}_gs": 0.0,
+                f"y{k}_games": 0.0, f"y{k}_pitching_runs": None, f"y{k}_milb_bf": 0.0,
+                f"y{k}_milb_runs": 0.0, f"y{k}_milb_outs": 0.0, f"y{k}_milb_gs": 0.0,
+                f"y{k}_milb_games": 0.0}
+    row |= {"y1_milb_bf": 600.0, "y1_milb_runs": 6.0, "y1_milb_outs": 420.0, "y1_milb_gs": 25.0,
+            "y1_milb_games": 26.0}
+    out = marcel.project_pitchers(pd.DataFrame([row]), league, milb_weight=0.5).iloc[0]
+    rate = 3 * 0.5 * 6.0 / (3 * 0.5 * 600.0 + marcel.REG_BF)
+    assert out["runs"] / out["bf"] == pytest.approx(rate)
+    assert out["runs_per_ip"] == pytest.approx(rate * 600.0 / 140.0)     # his BF per inning
+    assert out["role"] == "SP" and out["start_share"] == pytest.approx(25 / 26)

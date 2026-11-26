@@ -46,15 +46,15 @@ MODEL_SOURCE = {"steamer_optimized": "steamer", "steamer": "steamer", "depth_cha
                 "marcel_staff_optimized": "marcel_staff"}
 # Marcel source -> (aging, what rates are shrunk toward, park-neutral, fielding from Steamer
 # and ZiPS, pitcher innings, availability from Opening Day 40-man status, weight of minor-league
-# PA, rookies from minor-league history), as in the models
-_NONE = ("none", 0.0, False)
+# PA, rookies from minor-league history, weight of minor-league batters faced), as in the models
+_NONE = ("none", 0.0, False, 0.0)
 MARCEL_SETTINGS = {"marcel": (False, "league", False, False, "marcel", *_NONE),
                    "marcel_aging": (True, "league", False, False, "marcel", *_NONE),
                    "marcel_shrunk": (True, "fitted", False, False, "marcel", *_NONE),
                    "marcel_park": (True, "fitted", True, False, "marcel", *_NONE),
                    "marcel_park_fielding": (True, "fitted", True, True, "marcel", *_NONE),
                    "marcel_staff": (True, "fitted", True, True, "baseline", "absolute", 0.5,
-                                    True)}
+                                    True, 0.5)}
 STAFF_OPTIMIZED = {"marcel_staff"}   # sources whose innings come from the staff optimizer
 # lineup optimizer settings by source, as in the models (default: the absolute curve)
 OPTIMIZER_OPTIONS = {"marcel_staff": lo.RELATIVE}
@@ -363,10 +363,11 @@ def marcel_rows(source: str, season: int, path=DUCKDB_PATH,
 def staff_rows(team_pit: pd.DataFrame) -> pd.DataFrame:
     """Team pitchers with the staff optimizer's innings and WAR (as in the forecast), one row
     per pitcher: role is the pool (SP rotation, RP relief) he throws most of his innings in."""
+    from bucco.models.depth_chart_model import pitcher_rate
     from bucco.models.staff_optimizer import optimize_staffs
 
     ip = team_pit["ip"].astype(float)
-    alloc = optimize_staffs(team_pit.assign(rate=(team_pit["runs"] / ip.where(ip > 0)).fillna(0.0),
+    alloc = optimize_staffs(team_pit.assign(rate=pitcher_rate(team_pit),
                                             base_ip=ip))
     alloc = alloc[alloc["mlbam_id"] >= 0]
     by_pool = alloc.pivot_table(index=["team_id", "mlbam_id"], columns="pool", values="ip",

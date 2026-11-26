@@ -212,16 +212,21 @@ def project_batters(frame: pd.DataFrame, league: pd.DataFrame, reg_pa: float = R
 def project_pitchers(frame: pd.DataFrame, league: pd.DataFrame, reg_bf: float = REG_BF,
                      weights: tuple[float, ...] = PITCHER_WEIGHTS,
                      curves: dict[int, pd.Series] | None = None,
-                     prior: str = "league", park: bool = False) -> pd.DataFrame:
+                     prior: str = "league", park: bool = False,
+                     milb_weight: float = 0.0) -> pd.DataFrame:
     """Marcel pitcher projections from pitcher_projection_frame rows.
+    `milb_weight`: with y1-y3_milb_bf, _runs, _outs, _gs and _games in the frame (major-league
+    equivalents, bucco.models.milb), each minor-league season joins the weighted history like an
+    MLB season (runs, batters faced, innings, starts and games), counted at this weight.
     `park`: project from park-neutral runs (`pitching_runs_neutral`) instead of runs as pitched.
     `curves`: aging curves of pitching_runs per BF by target season (`age_curves`), or None.
     `prior`: as for batters ("replacement" is replacement-level runs per batter faced).
 
     Returns season, mlbam_id, player_name, age, last_team_id, role (SP if he started at least
     half his weighted games), ip, gs, bf, runs (FIP-based runs above average), war, fip (on
-    the ERA scale of the season before), start_share and the season-before constants
-    sp_rep_per_ip, rp_rep_per_ip and runs_per_win."""
+    the ERA scale of the season before), runs_per_ip (the rate, which stays known when
+    projected innings are 0), start_share and the season-before constants sp_rep_per_ip,
+    rp_rep_per_ip and runs_per_win."""
     f = frame.reset_index(drop=True)
     w_bf = sum(w * f[f"y{k}_bf"] for k, w in enumerate(weights, start=1))
     runs_col = "pitching_runs_neutral" if park else "pitching_runs"
@@ -230,6 +235,15 @@ def project_pitchers(frame: pd.DataFrame, league: pd.DataFrame, reg_bf: float = 
     w_ip = sum(w * f[f"y{k}_outs"] / 3.0 for k, w in enumerate(weights, start=1))
     w_gs = sum(w * f[f"y{k}_gs"] for k, w in enumerate(weights, start=1))
     w_g = sum(w * f[f"y{k}_games"] for k, w in enumerate(weights, start=1))
+    if milb_weight and "y1_milb_bf" in f:
+        for k, w in enumerate(weights, start=1):
+            m_bf = f[f"y{k}_milb_bf"].fillna(0.0)
+            d = w * milb_weight
+            w_bf = w_bf + d * m_bf
+            runs = runs + d * (f[f"y{k}_milb_runs"].fillna(0.0) + m_bf * _aging(f, curves, k))
+            w_ip = w_ip + d * f[f"y{k}_milb_outs"].fillna(0.0) / 3.0
+            w_gs = w_gs + d * f[f"y{k}_milb_gs"].fillna(0.0)
+            w_g = w_g + d * f[f"y{k}_milb_games"].fillna(0.0)
     bf_per_ip = (w_bf / w_ip.where(w_ip > 0)).fillna(4.3)
     lg = _prior_league(f, league)
     if prior not in PRIORS:
@@ -254,6 +268,7 @@ def project_pitchers(frame: pd.DataFrame, league: pd.DataFrame, reg_bf: float = 
         "bf": bf_per_ip * ip,
     })
     out["runs"] = runs_per_bf * out["bf"]
+    out["runs_per_ip"] = runs_per_bf * bf_per_ip      # the rate, kept even at 0 innings
     # replacement level by role: lower for starters, mixed by his weighted share of starts
     start_share = (w_gs / w_g.where(w_g > 0)).fillna(0.0).clip(0.0, 1.0).to_numpy()
     rep = (lg["rp_replacement_runs_per_ip"]

@@ -131,3 +131,39 @@ def test_start_penalty_recovers_a_known_effect():
     h = pd.DataFrame(rows)
     assert innings.fit_start_penalty(h, "runs", 2018) == pytest.approx(0.007 * 4.3, rel=1e-6)
     assert innings.fit_start_penalty(h, "runs", 2016) == 0.0      # no pairs before 2016
+
+
+def test_rookies_get_their_own_innings_line():
+    f = _frame()
+    f["milb_rookie"] = False
+    rook = f.copy()
+    rook["mlbam_id"] += 10_000
+    rook["milb_rookie"] = True
+    rook["y1_outs"] = 0.0
+    rook["m1_aaa_sp"] = np.tile(np.linspace(0, 150, 300), 3)
+    rook["target_outs"] = 3 * (2 + 0.2 * rook["m1_aaa_sp"])   # 2 IP + 0.2 per Triple-A start IP
+    both = pd.concat([f, rook], ignore_index=True)
+    base = innings.baseline_ip(both, pd.Series(True, index=both.index))
+    later = (both["season"] == 2017) & both["milb_rookie"]
+    expected = 2 + 0.2 * both.loc[later, "m1_aaa_sp"]
+    assert base[later].to_numpy() == pytest.approx(expected.to_numpy(), abs=1e-6)
+    est = (both["season"] == 2017) & ~both["milb_rookie"]           # established line unchanged
+    assert base[est].to_numpy() == pytest.approx(
+        innings.baseline_ip(f, pd.Series(True, index=f.index))[f["season"] == 2017].to_numpy())
+
+
+def test_pitcher_rate_is_kept_at_zero_innings():
+    from bucco.models.depth_chart_model import pitcher_rate
+    p = pd.DataFrame({"ip": [0.0, 100.0], "runs": [0.0, 5.0], "runs_per_ip": [0.08, 0.05]})
+    assert list(pitcher_rate(p)) == [0.08, 0.05]
+    assert list(pitcher_rate(p.drop(columns="runs_per_ip"))) == [0.0, 0.05]
+
+
+def test_relief_innings_follow_the_role():
+    p = _staff({(0, "rate"): -0.05, (0, "base_ip"): 200.0})      # a weak starter with a big workload
+    p["start_share"] = np.where(p["starter"], 1.0, 0.0)
+    alloc = so.optimize_staff(p, rep_sp=0.13, rep_rp=0.05, runs_per_win=10.0)
+    relief = alloc[(alloc["pool"] == "RP") & (alloc["mlbam_id"] >= 0)].groupby("mlbam_id")["ip"].sum()
+    starters = relief[relief.index < 10]
+    assert (starters <= so.RELIEF_FLOOR_IP + 1e-6).all()            # pure starters: long relief only
+    assert (relief <= so.MAX_RP_IP + so.RELIEF_FLOOR_IP + 1e-6).all()
