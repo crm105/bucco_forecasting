@@ -226,6 +226,17 @@ sources:
           - name: league_id
             description: MLB id of the league (the player's last at that level).
 
+      - name: minor_pitching
+        description: >
+          Minor-league pitching lines, Triple-A (sport 11) to Single-A (14), one row per pitcher,
+          level and season from 2009 (no 2020), with age and league. Saved by `bucco extract
+          mlb-minor-pitching`, which checks each level's size and the counts.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/mlb_api/minor_pitching/*.parquet')"
+        columns:
+          - name: outs
+            description: Outs recorded (innings x 3).
+
       - name: people
         description: >
           One row per player in `batting` or `pitching`: birth date, bats, throws and primary

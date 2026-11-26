@@ -191,6 +191,19 @@ models:
           - accepted_values:
               values: ['AAA', 'AA', 'A+', 'A']
 
+  - name: stg_mlb__minor_pitching
+    description: Minor-league pitching lines, typed. One row per season, level and pitcher.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, level, mlbam_id]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+
   - name: stg_mlb__rosters
     description: >
       Opening Day 40-man rosters with each player's status, typed. One row per season, team and

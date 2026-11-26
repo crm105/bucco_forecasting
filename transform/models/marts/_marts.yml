@@ -278,6 +278,25 @@ models:
         description: Batting plus stolen-base runs above the player's league average.
         data_tests: [not_null]
 
+  - name: minor_pitching_seasons
+    description: >
+      Minor-league pitching by pitcher, level and season (Triple-A to Single-A, 2009 on; the
+      Mexican League left out), valued against the pitcher's own league: FIP-based runs above
+      the league average, on the scale of MLB pitching_runs. Input to major-league equivalents.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, level, mlbam_id]
+    columns:
+      - name: season
+        description: Season played.
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: pitching_runs
+        description: FIP-based runs above the pitcher's league average (positive is better).
+        data_tests: [not_null]
+
   - name: player_preseason_status
     description: >
       Each player's status on his team's Opening Day 40-man roster: what a forecaster knows about
