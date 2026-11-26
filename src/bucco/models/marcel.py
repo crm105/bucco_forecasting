@@ -45,6 +45,10 @@ RP_IP_BASE = 25.0
 PT_WEIGHTS = (0.5, 0.1)
 FULL_SEASON_GAMES = 162.0
 PRIORS = ("league", "replacement", "fitted")
+COMPONENTS = ("k", "bb", "hr", "other")  # pitching runs split by FIP's parts (marts)
+# weighted batters faced of league average mixed into each part (chosen on 2003-2011 seasons,
+# before the backtest; docs/R&D/pitcher_components.md): strikeouts settle fast, home runs slowly
+COMPONENT_REG_BF = {"k": 300.0, "bb": 1200.0, "hr": 2400.0, "other": 4800.0}
 PRIOR_SCALE = {"batter": 500.0, "pitcher": 200.0}   # volume scale of the fitted prior's log term
 MIN_PRIOR_ROWS = 1000                   # earlier player-seasons needed to fit the prior
 AGE_RANGE = (20, 40)                  # ages the curve is fitted on; held flat outside
@@ -213,8 +217,14 @@ def project_pitchers(frame: pd.DataFrame, league: pd.DataFrame, reg_bf: float = 
                      weights: tuple[float, ...] = PITCHER_WEIGHTS,
                      curves: dict[int, pd.Series] | None = None,
                      prior: str = "league", park: bool = False,
-                     milb_weight: float = 0.0) -> pd.DataFrame:
+                     milb_weight: float = 0.0,
+                     components: dict[str, float] | None = None) -> pd.DataFrame:
     """Marcel pitcher projections from pitcher_projection_frame rows.
+    `components`: regress each part of pitching runs on its own (COMPONENTS: strikeouts, walks
+    and hit batters, home runs, the rest), each with its own batters faced of league average
+    (this dict, by part) and its own prior; the rate is their sum. Then `curves` is by part
+    ({part: curves by target season}) and the minor-league history has y1-y3_milb_<part>_runs.
+    With every part at `reg_bf` it equals the one-number projection.
     `milb_weight`: with y1-y3_milb_bf, _runs, _outs, _gs and _games in the frame (major-league
     equivalents, bucco.models.milb), each minor-league season joins the weighted history like an
     MLB season (runs, batters faced, innings, starts and games), counted at this weight.
@@ -229,18 +239,14 @@ def project_pitchers(frame: pd.DataFrame, league: pd.DataFrame, reg_bf: float = 
     rp_rep_per_ip and runs_per_win."""
     f = frame.reset_index(drop=True)
     w_bf = sum(w * f[f"y{k}_bf"] for k, w in enumerate(weights, start=1))
-    runs_col = "pitching_runs_neutral" if park else "pitching_runs"
-    runs = sum(w * (f[f"y{k}_{runs_col}"].fillna(0.0) + f[f"y{k}_bf"] * _aging(f, curves, k))
-               for k, w in enumerate(weights, start=1))
     w_ip = sum(w * f[f"y{k}_outs"] / 3.0 for k, w in enumerate(weights, start=1))
     w_gs = sum(w * f[f"y{k}_gs"] for k, w in enumerate(weights, start=1))
     w_g = sum(w * f[f"y{k}_games"] for k, w in enumerate(weights, start=1))
-    if milb_weight and "y1_milb_bf" in f:
+    use_milb = bool(milb_weight) and "y1_milb_bf" in f
+    if use_milb:
         for k, w in enumerate(weights, start=1):
-            m_bf = f[f"y{k}_milb_bf"].fillna(0.0)
             d = w * milb_weight
-            w_bf = w_bf + d * m_bf
-            runs = runs + d * (f[f"y{k}_milb_runs"].fillna(0.0) + m_bf * _aging(f, curves, k))
+            w_bf = w_bf + d * f[f"y{k}_milb_bf"].fillna(0.0)
             w_ip = w_ip + d * f[f"y{k}_milb_outs"].fillna(0.0) / 3.0
             w_gs = w_gs + d * f[f"y{k}_milb_gs"].fillna(0.0)
             w_g = w_g + d * f[f"y{k}_milb_games"].fillna(0.0)
@@ -248,14 +254,41 @@ def project_pitchers(frame: pd.DataFrame, league: pd.DataFrame, reg_bf: float = 
     lg = _prior_league(f, league)
     if prior not in PRIORS:
         raise ValueError(f"prior must be one of {PRIORS}, not {prior!r}")
-    if prior == "league":
-        mu = 0.0
-    elif prior == "replacement":
-        mu = -(lg["pitching_replacement_runs_per_ip"] / bf_per_ip).to_numpy()
+    suffix = "_neutral" if park else ""
+
+    def weighted_runs(col: str, milb_col: str, part_curves) -> pd.Series:
+        """Weighted history of runs (MLB and minor-league), aged to the target season."""
+        total = sum(w * (f[f"y{k}_{col}"].fillna(0.0) + f[f"y{k}_bf"] * _aging(f, part_curves, k))
+                    for k, w in enumerate(weights, start=1))
+        if use_milb:
+            for k, w in enumerate(weights, start=1):
+                m_bf = f[f"y{k}_milb_bf"].fillna(0.0)
+                total = total + w * milb_weight * (f[f"y{k}_{milb_col}"].fillna(0.0)
+                                                   + m_bf * _aging(f, part_curves, k))
+        return total
+
+    def shrunk(runs: pd.Series, reg: float, target: str):
+        if prior == "league":
+            mu = 0.0
+        elif prior == "replacement":
+            mu = -(lg["pitching_replacement_runs_per_ip"] / bf_per_ip).to_numpy()
+        else:
+            mu = fitted_prior_means(f, runs, w_bf, reg, target, "target_bf", league,
+                                    PRIOR_SCALE["pitcher"])
+        return (runs + reg * mu) / (w_bf + reg)
+
+    if components is None:
+        runs_col = f"pitching_runs{suffix}"
+        runs = weighted_runs(runs_col, "milb_runs", curves)
+        runs_per_bf = shrunk(runs, reg_bf, f"target_{runs_col}")
     else:
-        mu = fitted_prior_means(f, runs, w_bf, reg_bf, f"target_{runs_col}", "target_bf",
-                                league, PRIOR_SCALE["pitcher"])
-    runs_per_bf = (runs + reg_bf * mu) / (w_bf + reg_bf)
+        if prior == "replacement":
+            raise ValueError("components take prior 'league' or 'fitted'")
+        runs_per_bf = 0.0
+        for part, reg in components.items():
+            col = f"{part}_runs{suffix}"
+            runs = weighted_runs(col, f"milb_{part}_runs", (curves or {}).get(part))
+            runs_per_bf = runs_per_bf + shrunk(runs, reg, f"target_{col}")
     starter = (w_gs >= 0.5 * w_g) & (w_gs > 0)
     ip = (PT_WEIGHTS[0] * _full_season(f, 1, "y1_outs") / 3.0
           + PT_WEIGHTS[1] * _full_season(f, 2, "y2_outs") / 3.0

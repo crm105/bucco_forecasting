@@ -82,6 +82,41 @@ def test_starter_and_reliever_playing_time_and_value():
     assert rp["war"] == pytest.approx((rp["runs"] + 0.05 * rp["ip"]) / 10.0)   # reliever level
 
 
+def _by_part(**parts):
+    """A one-season starter whose 15 pitching runs are split by part."""
+    row = {"y1_bf": 800, "y1_outs": 570, "y1_gs": 32, "y1_games": 32, "y1_pitching_runs": 15.0}
+    for part in marcel.COMPONENTS:
+        for k in (1, 2, 3):
+            row[f"y{k}_{part}_runs"] = parts.get(part, 0.0) if k == 1 else None
+    return _pitcher(**row)
+
+
+def test_parts_at_one_weight_equal_the_one_number_projection():
+    frame = _by_part(k=12.0, bb=-2.0, hr=4.0, other=1.0)
+    one = marcel.project_pitchers(frame, LEAGUE).iloc[0]
+    parts = marcel.project_pitchers(frame, LEAGUE, components=dict.fromkeys(
+        marcel.COMPONENTS, marcel.REG_BF)).iloc[0]
+    assert parts["runs"] == pytest.approx(one["runs"])
+
+
+def test_each_part_is_regressed_by_its_own_weight():
+    k_only = marcel.project_pitchers(_by_part(k=15.0), LEAGUE, components=dict(
+        marcel.COMPONENT_REG_BF)).iloc[0]
+    hr_only = marcel.project_pitchers(_by_part(hr=15.0), LEAGUE, components=dict(
+        marcel.COMPONENT_REG_BF)).iloc[0]
+    per_ip = 800 / 190 * 3 * 15.0
+    assert k_only["runs_per_ip"] == pytest.approx(per_ip / (3 * 800 + marcel.COMPONENT_REG_BF["k"]))
+    assert hr_only["runs_per_ip"] == pytest.approx(
+        per_ip / (3 * 800 + marcel.COMPONENT_REG_BF["hr"]))
+    assert k_only["runs"] > hr_only["runs"]          # strikeouts are believed sooner
+
+
+def test_parts_refuse_the_replacement_prior():
+    with pytest.raises(ValueError, match="components"):
+        marcel.project_pitchers(_by_part(k=1.0), LEAGUE, prior="replacement",
+                                components=dict(marcel.COMPONENT_REG_BF))
+
+
 def _aging_history(change_per_year, seasons=range(2000, 2012), players=400, seed=1):
     """Players whose true rate changes by change_per_year(age) each season, plus noise."""
     import numpy as np

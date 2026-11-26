@@ -70,6 +70,7 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
                        fielding: bool = False, innings: str = "marcel",
                        availability: str = "none", milb: float = 0.0,
                        milb_rookies: bool = False, milb_pitching: float = 0.0,
+                       components: tuple[float, ...] | None = None,
                        path=DUCKDB_PATH) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Marcel projections (bucco.models.marcel) for every player with MLB history in the three
     seasons before each target season, on any team or none: (batters, pitchers). `aging`
@@ -85,7 +86,10 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
     weight of minor-league PA (major-league equivalents, bucco.models.milb) in batters' history
     (0: none); `milb_rookies` also projects batters with minor-league but no MLB history.
     `milb_pitching`: the same for pitchers (weight of a minor-league batter faced; rookies
-    included when above 0), with minor-league innings in the baseline-innings line."""
+    included when above 0), with minor-league innings in the baseline-innings line.
+    `components`: batters faced of league average for each part of pitchers' runs
+    (marcel.COMPONENTS, in order), each part regressed, aged and translated on its own; None
+    regresses pitching runs as one number."""
     if not path.exists():
         raise RuntimeError(f"{path} not found. Run `bucco extract all` and `bucco build` first.")
     with duckdb.connect(str(path), read_only=True) as con:
@@ -94,25 +98,32 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
         pit_frame = con.sql("select * from marts.pitcher_projection_frame").df()
         bat_history = con.sql("select season, mlbam_id, age, off_runs, off_runs_neutral, pa "
                               "from marts.player_batting_seasons where not is_pitcher").df()
-        pit_history = con.sql("select season, mlbam_id, age, games, gs, outs, pitching_runs, "
-                              "pitching_runs_neutral, bf from marts.player_pitching_seasons").df()
+        pit_history = con.sql("select * from marts.player_pitching_seasons").df()
     off_col = "off_runs_neutral" if park else "off_runs"
     runs_col = "pitching_runs_neutral" if park else "pitching_runs"
     if milb:
         bat_frame = with_milb(bat_frame, milb_rookies, path)
     if milb_pitching:
-        pit_frame = with_milb_pitching(pit_frame, path)
+        pit_frame = with_milb_pitching(pit_frame, path, components=components is not None)
     bat_curves = pit_curves = None
     if aging:
         bat_curves = marcel.age_curves(bat_history, off_col, "pa", bat_frame["season"])
-        pit_curves = marcel.age_curves(pit_history, runs_col, "bf", pit_frame["season"])
+        if components is None:
+            pit_curves = marcel.age_curves(pit_history, runs_col, "bf", pit_frame["season"])
+        else:
+            suffix = "_neutral" if park else ""
+            pit_curves = {part: marcel.age_curves(pit_history, f"{part}_runs{suffix}", "bf",
+                                                  pit_frame["season"])
+                          for part in marcel.COMPONENTS}
     batters = marcel.project_batters(bat_frame, league, curves=bat_curves, prior=prior,
                                      park=park, milb_weight=milb)
     if fielding:
         batters = marcel.apply_external_def(batters, external_def_rates(path=path), league)
     pit_frame = pit_frame.reset_index(drop=True)
     pitchers = marcel.project_pitchers(pit_frame, league, curves=pit_curves, prior=prior,
-                                       park=park, milb_weight=milb_pitching)
+                                       park=park, milb_weight=milb_pitching,
+                                       components=None if components is None else
+                                       dict(zip(marcel.COMPONENTS, components, strict=True)))
     if innings == "baseline":
         roster = marcel_rosters(path=path)
         keys = set(zip(roster.loc[roster["player_type"] == "pitcher", "season"],
@@ -195,26 +206,41 @@ def injury_samples(batters: pd.DataFrame, pitchers: pd.DataFrame,
             for s in sorted(set(batters["season"]) | set(pitchers["season"]))}
 
 
-def with_milb_pitching(pit_frame: pd.DataFrame, path=DUCKDB_PATH) -> pd.DataFrame:
+def with_milb_pitching(pit_frame: pd.DataFrame, path=DUCKDB_PATH,
+                       components: bool = False) -> pd.DataFrame:
     """pitcher_projection_frame with translated minor-league history (y1-y3_milb_bf, _runs,
     _outs, _gs, _games; 0 where none) and rows for pitchers with minor-league but no MLB
     history (bucco.models.milb, drops scaled by PITCHER_DROP_SCALE), with the inputs of rookies'
-    baseline innings (bucco.models.innings.ROOKIE_FEATURES)."""
+    baseline innings (bucco.models.innings.ROOKIE_FEATURES). `components` also translates each
+    part of the runs (marcel.COMPONENTS) with its own drops: y1-y3_milb_<part>_runs."""
+    parts = [f"{p}_runs" for p in marcel.COMPONENTS]
     with duckdb.connect(str(path), read_only=True) as con:
         minor = con.sql("select season, mlbam_id, player_name, age, level, bf, pitching_runs, "
-                        "outs, gs, games from marts.minor_pitching_seasons").df()
+                        f"outs, gs, games, {', '.join(parts)} "
+                        "from marts.minor_pitching_seasons").df()
         status = con.sql("select season, mlbam_id, il_group "
                          "from marts.player_preseason_status").df()
         mlb = con.sql("select season, mlbam_id, bf, pitching_runs_neutral as pitching_runs, "
                       "outs as target_outs, bf as target_bf, gs as target_gs, "
                       "games as target_games, pitching_runs as target_pitching_runs, "
-                      "pitching_runs_neutral as target_pitching_runs_neutral "
-                      "from marts.player_pitching_seasons").df()
+                      "pitching_runs_neutral as target_pitching_runs_neutral, "
+                      + ", ".join(f"{p}_neutral as mlb_{p}, {p} as target_{p}, "
+                                  f"{p}_neutral as target_{p}_neutral" for p in parts)
+                      + " from marts.player_pitching_seasons").df()
     history = mle.milb_history(minor, mlb, pit_frame["season"], volume="bf",
                                runs="pitching_runs", extra=("outs", "gs", "games"),
                                drop_scale=mle.PITCHER_DROP_SCALE)
+    if components:
+        for p in parts:
+            h = mle.milb_history(minor, mlb[["season", "mlbam_id", "bf", f"mlb_{p}"]].rename(
+                columns={f"mlb_{p}": p}), pit_frame["season"], volume="bf", runs=p,
+                drop_scale=mle.PITCHER_DROP_SCALE)
+            h = h.rename(columns={f"y{k}_milb_runs": f"y{k}_milb_{p}" for k in (1, 2, 3)})
+            history = history.merge(h[["season", "mlbam_id",
+                                       *[f"y{k}_milb_{p}" for k in (1, 2, 3)]]],
+                                    on=["season", "mlbam_id"], how="left")
     upcoming = set(pit_frame.loc[pit_frame["is_upcoming_season"].astype(bool), "season"])
-    targets = mlb.drop(columns=["bf", "pitching_runs"])
+    targets = mlb.drop(columns=["bf", "pitching_runs", *[f"mlb_{p}" for p in parts]])
     new = mle.rookie_rows(pit_frame, history, targets, upcoming, volume="bf",
                           min_volume=mle.ROOKIE_MIN_BF, pitchers=True)
     frame = pd.concat([pit_frame.assign(milb_rookie=False), new], ignore_index=True)
@@ -326,7 +352,7 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
                      availability: str = "none", milb: float = 0.0,
                      milb_rookies: bool = False, relative_fatigue: bool = False,
                      injury_sims: int = 0, milb_pitching: float = 0.0,
-                     path=DUCKDB_PATH) -> PlayerData:
+                     pitcher_components: bool = False, path=DUCKDB_PATH) -> PlayerData:
     """Our own Marcel projections on each team's preseason roster.
 
     Rosters are the team assignments in `roster_source`'s player files (players listed for
@@ -339,10 +365,13 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
     projected and shared out. `relative_fatigue`: the lineup optimizer's fatigue curve relative
     to each batter's projected PA (lineup_optimizer.RELATIVE) instead of a 600-PA scale.
     `injury_sims`: team WAR as the mean over this many injury draws (bucco.models.injury_sim),
-    the draws fitted for each season on earlier ones."""
+    the draws fitted for each season on earlier ones. `pitcher_components`: pitchers' runs
+    regressed by part (marcel.COMPONENT_REG_BF) instead of as one number."""
+    components = (tuple(marcel.COMPONENT_REG_BF[p] for p in marcel.COMPONENTS)
+                  if pitcher_components else None)
     batters, pitchers = marcel_projections(aging, prior, park, fielding, innings,
                                            availability, milb, milb_rookies, milb_pitching,
-                                           path=path)
+                                           components, path=path)
     roster = marcel_rosters(roster_source, path)
     with duckdb.connect(str(path), read_only=True) as con:
         positions = con.sql("select season, mlbam_id, position, games "
@@ -413,13 +442,15 @@ def make_marcel_staff_optimized_model() -> DepthChartModel:
     (bucco.models.innings) shared out by the staff optimizer (bucco.models.staff_optimizer), and
     playing time scaled by Opening Day 40-man status (bucco.models.availability), and batters'
     and pitchers' minor-league history (major-league equivalents, bucco.models.milb), rookies
-    included; batters' fatigue curve relative to their projected PA (lineup_optimizer.RELATIVE)."""
+    included; batters' fatigue curve relative to their projected PA (lineup_optimizer.RELATIVE);
+    pitchers' runs regressed by part (strikeouts, walks, home runs, the rest)."""
     return DepthChartModel(load_marcel_data("optimized", aging=True, prior="fitted", park=True,
                                             fielding=True, innings="baseline",
                                             pitcher_playing_time="optimized",
                                             availability="absolute", milb=mle.MILB_WEIGHT,
                                             milb_rookies=True, relative_fatigue=True,
-                                            milb_pitching=mle.PITCHER_MILB_WEIGHT),
+                                            milb_pitching=mle.PITCHER_MILB_WEIGHT,
+                                            pitcher_components=True),
                            name="marcel_staff_optimized")
 
 

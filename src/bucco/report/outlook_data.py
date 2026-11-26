@@ -26,6 +26,7 @@ from bucco.config import DUCKDB_PATH
 from bucco.evaluate.metrics import Z_80
 from bucco.extract.projections import INPUT_DIR
 from bucco.models import lineup_optimizer as lo
+from bucco.models import marcel
 from bucco.models.base import GAMES
 from bucco.models.scenario import compare_lineups, unsigned_players
 from bucco.models.schedule import neutral_from_adjusted
@@ -46,7 +47,8 @@ MODEL_SOURCE = {"steamer_optimized": "steamer", "steamer": "steamer", "depth_cha
                 "marcel_staff_optimized": "marcel_staff"}
 # Marcel source -> (aging, what rates are shrunk toward, park-neutral, fielding from Steamer
 # and ZiPS, pitcher innings, availability from Opening Day 40-man status, weight of minor-league
-# PA, rookies from minor-league history, weight of minor-league batters faced), as in the models
+# PA, rookies from minor-league history, weight of minor-league batters faced[, pitchers' runs
+# regressed by part: marcel.COMPONENT_REG_BF]), as in the models
 _NONE = ("none", 0.0, False, 0.0)
 MARCEL_SETTINGS = {"marcel": (False, "league", False, False, "marcel", *_NONE),
                    "marcel_aging": (True, "league", False, False, "marcel", *_NONE),
@@ -54,7 +56,8 @@ MARCEL_SETTINGS = {"marcel": (False, "league", False, False, "marcel", *_NONE),
                    "marcel_park": (True, "fitted", True, False, "marcel", *_NONE),
                    "marcel_park_fielding": (True, "fitted", True, True, "marcel", *_NONE),
                    "marcel_staff": (True, "fitted", True, True, "baseline", "absolute", 0.5,
-                                    True, 0.5)}
+                                    True, 0.5, tuple(marcel.COMPONENT_REG_BF[p]
+                                                     for p in marcel.COMPONENTS))}
 STAFF_OPTIMIZED = {"marcel_staff"}   # sources whose innings come from the staff optimizer
 # lineup optimizer settings by source, as in the models (default: the absolute curve)
 OPTIMIZER_OPTIONS = {"marcel_staff": lo.RELATIVE}
