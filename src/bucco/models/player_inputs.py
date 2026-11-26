@@ -329,17 +329,19 @@ def park_fit_team_means(batters: pd.DataFrame, path=DUCKDB_PATH) -> pd.Series:
     return (runs * batters["pa"]).groupby(keys).sum() / batters["pa"].groupby(keys).sum()
 
 
-ROSTER_SOURCES = ("steamer", "mlb")
+ROSTER_SOURCES = ("steamer", "mlb", "mlb_org")
 
 
 def marcel_rosters(roster_source: str = "steamer", path=DUCKDB_PATH) -> pd.DataFrame:
     """Preseason rosters: season, player_type, mlbam_id, team_id, as_of_date. "steamer": the team
     assignments in Steamer's player files (from 2012, players beyond the 40-man included). "mlb":
     each team's Opening Day 40-man roster from the MLB Stats API (marts.player_preseason_status,
-    from 2009), pitchers by roster position (two-way players are both)."""
+    from 2009), pitchers by roster position (two-way players are both). "mlb_org": the same plus
+    each organization's minor-league depth (marts.organization_depth: last season's affiliates),
+    less anyone on a 40-man roster that Opening Day."""
     if roster_source not in ROSTER_SOURCES:
         raise ValueError(f"roster_source must be one of {ROSTER_SOURCES}, not {roster_source!r}")
-    if roster_source == "mlb":
+    if roster_source in ("mlb", "mlb_org"):
         with duckdb.connect(str(path), read_only=True) as con:
             status = con.sql("select season, mlbam_id, team_id, snapshot_date as as_of_date, "
                              "position from marts.player_preseason_status").df()
@@ -349,7 +351,19 @@ def marcel_rosters(roster_source: str = "steamer", path=DUCKDB_PATH) -> pd.DataF
         keep = ["season", "player_type", "mlbam_id", "team_id", "as_of_date"]
         pitchers = status[status["position"].isin(["P", "TWP"])].assign(player_type="pitcher")
         batters = status[status["position"] != "P"].assign(player_type="batter")
-        return pd.concat([batters[keep], pitchers[keep]], ignore_index=True)
+        roster = pd.concat([batters[keep], pitchers[keep]], ignore_index=True)
+        if roster_source == "mlb_org":
+            with duckdb.connect(str(path), read_only=True) as con:
+                depth = con.sql("select season, mlbam_id, team_id, player_type "
+                                "from marts.organization_depth").df()
+            on_40 = set(zip(status["season"], status["mlbam_id"], strict=True))
+            depth = depth[[k not in on_40 for k in zip(depth["season"], depth["mlbam_id"],
+                                                       strict=True)]]
+            depth = depth[depth["season"].isin(set(status["season"]))]
+            dates = status.groupby("season")["as_of_date"].first()
+            depth = depth.assign(as_of_date=depth["season"].map(dates).to_numpy())
+            roster = pd.concat([roster, depth[keep]], ignore_index=True)
+        return roster
     with duckdb.connect(str(path), read_only=True) as con:
         roster = con.execute("select distinct season, player_type, mlbam_id, team_id, as_of_date "
                              "from marts.player_projections where source = ? "
