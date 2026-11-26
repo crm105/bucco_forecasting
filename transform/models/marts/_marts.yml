@@ -297,6 +297,32 @@ models:
         description: FIP-based runs above the pitcher's league average (positive is better).
         data_tests: [not_null]
 
+  - name: player_team_seasons
+    description: >
+      What each player actually did for each team in a season, as batter and as pitcher: PA or
+      innings, park-neutral WAR and the runs behind it, split between teams by games in the field
+      or innings pitched.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id, team_id, part]
+    columns:
+      - name: part
+        data_tests:
+          - accepted_values:
+              values: ['batting', 'pitching']
+
+  - name: team_war_seasons
+    description: >
+      Each team's actual WAR per season (our park-neutral approximation), batting and pitching,
+      players split between teams by games in the field or innings pitched. Target of the
+      backtest's team-WAR check.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, team_id]
+    columns:
+      - name: war
+        data_tests: [not_null]
+
   - name: player_il_seasons
     description: >
       Days, stints and 60-day stints on the injured list per player and regular season, from
