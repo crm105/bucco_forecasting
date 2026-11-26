@@ -173,4 +173,5 @@ minutes (to speed up: keep only rookies on a preseason list before projecting).
 ## Status
 
 Hitting and pitching adopted in `marcel_staff_optimized` (9.57; Steamer 9.50), with the relative batter
-fatigue curve.
+fatigue curve. Pitchers' minor-league history is now translated by part (strikeouts, walks, home
+runs): [pitcher_components.md](pitcher_components.md) (9.54).

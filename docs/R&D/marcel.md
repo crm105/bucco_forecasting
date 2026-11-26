@@ -254,7 +254,8 @@ average in the field (Reynolds, Horwitz, O'Hearn, Gonzales, Mangum, Valdez: -2.5
 1. Fielding of our own (FanGraphs Fld or Statcast OAA in the history), to replace the borrowed
    Def.
 2. Pitchers: by component (K, BB, HR), with separate starter and reliever replacement levels.
-   This is now the biggest player-level gap (FIP RMSE 0.739 vs Steamer's 0.694).
+   This is now the biggest player-level gap (FIP RMSE 0.739 vs Steamer's 0.694). Done: separate
+   replacement levels (above) and components ([pitcher_components.md](pitcher_components.md)).
 3. Rookies with no MLB history at all still get no projection (the fitted target covers players
    with some history). Minor-league data would help both them and young players like Valdez.
 4. Playing time beyond the Marcel formula, then a second look at the optimizer.
