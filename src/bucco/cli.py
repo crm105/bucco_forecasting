@@ -24,6 +24,7 @@
     bucco leaderboard [--pirates] [--first-season 2001] [--include-shortened]
     bucco team-war [--models marcel_staff_optimized steamer_optimized] [--first-season 2012]
     bucco evaluate [--models marcel_staff_optimized steamer_optimized] [--first-season 2012]
+    bucco fit-ml-pitchers
 """
 
 from __future__ import annotations
@@ -188,6 +189,15 @@ def _evaluate(args: argparse.Namespace) -> None:
     for name, table in splits.items():
         print(f"3. Team WAR error, rate against playing time: {name}")
         print(table.to_string(**fmt), "\n")
+
+
+def _fit_ml_pitchers(args: argparse.Namespace) -> None:
+    """Fit the learned pitcher innings and rate models walk-forward and save their predictions."""
+    from bucco.models import ml_pitchers
+
+    preds = ml_pitchers.fit_and_save()
+    print(f"Saved {len(preds)} pitcher predictions, {preds['season'].min()}-"
+          f"{preds['season'].max()}, to {ml_pitchers.PREDICTIONS}")
 
 
 def _forecast(args: argparse.Namespace) -> None:
@@ -373,6 +383,11 @@ def main(argv: list[str] | None = None) -> None:
     ev.add_argument("--first-season", type=int, default=2012,
                     help="first season scored (default 2012)")
     ev.set_defaults(func=_evaluate)
+
+    fml = commands.add_parser("fit-ml-pitchers",
+                              help="fit the learned pitcher innings and rate models (about an "
+                                   "hour) and save their predictions for marcel_ml_pitchers")
+    fml.set_defaults(func=_fit_ml_pitchers)
 
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")

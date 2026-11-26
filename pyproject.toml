@@ -16,6 +16,7 @@ dependencies = [
     "dbt-core>=1.9",
     "dbt-duckdb>=1.9",
     "statsmodels>=0.15.0",
+    "scikit-learn>=1.5",
 ]
 
 [project.optional-dependencies]
