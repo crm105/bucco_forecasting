@@ -74,7 +74,41 @@ The case for ML is playing time, and specifically pitchers' innings: a learned i
 worth about 0.1 wins (9.58 to 9.47, t −1.8). A linear fit gets most of it (9.50) without a new
 dependency. Rates and hitters' PA: no.
 
+## Second round: richer features and tuning (2026-11-26)
+
+Inputs reworked: each past season combines MLB and minor-league lines (with the share of playing
+time in the minors and the average level), injured-list days, stints and 60-day stints
+(`player_il_seasons`), ground-out share, rates against each season's league, a season term and
+recency weights (x0.9 a year); missing values left missing. Settings tuned for each target season
+on the two seasons before it (18: leaves 15/7/4, rows per leaf 40/100/200, trees 300/150). Player
+level, 2012–2026, with Steamer on the same players:
+
+| | Current pipeline | Tuned boosting + current | Steamer |
+| --- | --- | --- | --- |
+| Pitcher innings (RMSE) | 38.79 | **37.43** | 39.47 |
+| Hitter PA (RMSE) | 164.6 | **146.2** | 146.3 |
+| Pitcher rate (runs per 9) | 0.778 | **0.762** | 0.761 |
+| Hitter rate (off runs per 600) | 16.24 | **16.21** | 16.31 |
+
+Through the forecast (`bucco evaluate` tables, 2012–2026, wins line from 2012):
+
+| | Team WAR batting | pitching | total | Record RMSE |
+| --- | --- | --- | --- | --- |
+| Current | 5.46 | 4.76 | 7.98 | 9.56 |
+| All four learned, summed as given | 5.54 | 4.65 | 7.86 | 9.56 |
+| All four learned, through the optimizers | 5.52 | 4.63 | 7.84 | 9.52 |
+| **Learned pitchers only, through the optimizers** | **5.46** | **4.63** | **7.82** | **9.46** |
+
+Learned hitter PA is better player by player but makes team batting WAR worse, as given or
+through the lineup optimizer (which re-divides PA). It does not compress teams (projected team
+batting WAR spread 4.8 against 4.4 now; actual 6.9); why it hurts is open. Learned hitter rates
+tie Marcel.
+
 ## Status
 
-Tested only (scripts not in the repo). Next: build the innings model into `innings.py` as an
-option, rerun the registered backtest, and check the 2027 staffs.
+Adopted for pitchers as `marcel_ml_pitchers` (`bucco.models.ml_pitchers`): `marcel_staff_optimized`
+with learned pitcher innings and rates through the staff optimizer. Registered backtest 9.50 on
+2012–2026 (Steamer 9.50, `marcel_staff_optimized` 9.58). `bucco fit-ml-pitchers` fits both models
+(about an hour) and saves predictions for 2012 to the upcoming season; innings before 2012 stay the
+pipeline's. 2027 Pirates 82.4 wins (12th): their pitching WAR rises (17.9 to 19.3) but the league's
+rises more (14.0 to 16.2), as the learned innings give more time to projected pitchers everywhere.

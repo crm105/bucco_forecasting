@@ -189,6 +189,17 @@ numbers lean toward our own model; comparisons between versions of one model are
 prints only the team-WAR part of table 2 and saves it in `evaluate.team_war_results`. Both take a
 few minutes per model (the lineup and staff optimizers run for every season).
 
+## Fit the learned pitcher models
+
+```
+bucco fit-ml-pitchers
+```
+
+Fits the learned pitcher innings and rate models walk-forward (each target season tuned on the
+two before it; about an hour) and saves their predictions, 2012 to the upcoming season, to
+`data/cache/derived/ml_pitchers.parquet`. `marcel_ml_pitchers` reads that file; rerun after new
+data or projections, before `backtest` or `forecast` (see [R&D/ml_playing_time.md](R&D/ml_playing_time.md)).
+
 ## Help and troubleshooting
 
 - `bucco --help` and `bucco <command> --help` list every option.
