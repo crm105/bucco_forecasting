@@ -71,8 +71,26 @@ from 1st to 9th. Rosters fill toward Opening Day; rerun then.
 - 2002–2008 need a roster source outside the API.
 - Fielding in 2009–2010 is positional only, so those seasons are scored with a weaker model.
 - Non-roster players: a prospect or veteran invitee who makes the team is missing until called
-  up. Adding the organization's minor-leaguers from last season's affiliates would be the
-  leak-free way to bring them back.
+  up. Tried below: no gain.
+
+## Organization depth (tried, not adopted)
+
+`bucco extract mlb-minor-affiliates` saves each season's minor-league teams with their parent
+organization (2006 on; the Mexican League, classed Triple-A until 2020, is not an affiliate).
+Mart `organization_depth`: every player who played for an organization's affiliates the season
+before (at his highest level), as a batter or pitcher by volume, about 5,000 a season (Pirates
+2027: 176). Roster source `"mlb_org"` adds them to the 40-man rosters, less anyone on a 40-man.
+Known before the season; misses winter moves.
+
+| Wins RMSE | 2012–26 | 2009–26 | Better | t |
+| --- | --- | --- | --- | --- |
+| 40-man (kept) | 9.577 | 9.455 | | |
+| 40-man + organization depth | 9.578 | 9.485 | 6 of 17 | +1.3 |
+
+No gain: the availability factor fitted for players off the 40-man already gives them little
+playing time, and the early seasons get worse (2009 +0.30, 2010 +0.19). So the 0.04 left to
+Steamer's rosters is not minor-league depth; more likely it is who Steamer expected to make the
+team. Kept as an option (`load_marcel_data(roster_source="mlb_org")`).
 
 ## Status
 
