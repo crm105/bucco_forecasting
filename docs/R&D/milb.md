@@ -90,9 +90,87 @@ now gets credit for its prospects, and the Padres' are few. Pirates 87.2 (6th).
   275 PA for the 2027 Padres): the lineup optimizer's fatigue curve was on an absolute 600-PA
   scale. Fixed with a curve relative to each batter's projected PA
   ([lineup_optimizer.md](lineup_optimizer.md)).
-- Minor-league pitching, the same way.
 - Minor-league fielding positions for rookies not in Steamer's file.
+
+## Pitchers (2026-11-25)
+
+**Why.** Rookie pitchers had no projection at all, and pitchers with thin MLB history were our
+largest player-level gap to Steamer.
+
+**Data.** `bucco extract mlb-minor-pitching` (same levels and seasons, 3,500 to 4,700 lines a
+season); mart `minor_pitching_seasons`: FIP-based runs above the pitcher's own league average,
+(league FIP − FIP) × IP / 9, the scale of MLB `pitching_runs` (the FIP constant cancels).
+
+**Translation.** The same chain on runs per batter faced (2,100 to 3,000 pairs a step), to
+park-neutral MLB pitching runs. Per 700 batters faced: Triple-A −20, Double-A −31 to −34,
+High-A −40 to −46, Single-A −51 to −58 (larger with a 100- than a 200-batter threshold,
+promotion selection again).
+
+**Into Marcel.** Translated runs, batters faced, innings, starts and games join the 3/2/1
+history at a weight, so a rookie starter gets a starter's role and replacement level.
+
+**Player level** (next-season FIP-based runs per 9, relative to the season, weighted by innings,
+pitchers with 30+ IP, 2012–2026 without 2020):
+
+| | Thin MLB history | Middle | Heavy | Rookies (667) |
+| --- | --- | --- | --- | --- |
+| No minor-league history | 0.915 | 0.827 | 0.661 | none |
+| Drops × 1, weight 0.5 | 0.893 | 0.820 | 0.672 | 0.966 (bias −0.23) |
+| **Drops × 0.5, weight 0.5 (kept)** | **0.886** | **0.824** | **0.659** | **0.938 (+0.07)** |
+| Drops × 0.7, weight 0.5 | 0.884 | 0.821 | 0.663 | 0.936 (−0.05) |
+| Steamer (pitchers it lists) | 0.860 | 0.778 | 0.639 | |
+
+The same settings as hitters (`PITCHER_DROP_SCALE`, `PITCHER_MILB_WEIGHT` 0.5).
+
+**Rookie innings.** The first version put minor-league innings into the shared baseline-innings
+line; fitted on all rostered pitchers (thousands of minor-league arms on Steamer's lists who never
+pitch in MLB, plus veterans' rehab innings), it gave rookies about nothing: rookies who went on to
+throw 80+ MLB innings were projected for 6. Two changes:
+
+1. A separate walk-forward line for rookies (`innings.ROOKIE_FEATURES`): last season's
+   minor-league innings by level and role (Triple-A and Double-A as starter and in relief,
+   lower levels), age, and Opening Day 40-man status (on the roster, on its injured list, and
+   on the roster times upper-level starter innings).
+2. Rookie pitchers are left out of the Opening Day availability scaling, which had counted
+   40-man status a second time.
+
+| Rostered rookies, 2014–2026 | Projected IP | Actual IP |
+| --- | --- | --- |
+| All | 2.0 | 2.3 |
+| On the 40-man, active | 19.5 | 23.1 |
+| Off the 40-man (20,600) | 1.1 | 1.2 |
+| Our 400 highest-projected | 28 | 34 |
+
+(Before: all 0.7, top 400 13.) Rookies who went on to throw 80+ IP now average 17 projected
+(selected on the outcome, so always low).
+
+**Pitcher rates at 0 innings.** The staff optimizer took a pitcher's rate as runs / innings, so
+anyone projected for 0 innings counted as an average pitcher. Marcel now keeps the rate
+(`runs_per_ip`) and the optimizers, the injury simulation and the outlook use it. No effect on
+the backtest on its own (9.633 to 9.634), but it matters for rookies with small baselines.
+
+**Teams** (wins RMSE, 2012–2026 without 2020):
+
+| | 2012–26 | 2012–19 | 2021–26 | Better | t |
+| --- | --- | --- | --- | --- | --- |
+| `marcel_staff_optimized` before (rate fix in) | 9.634 | 9.293 | 10.071 | | |
+| **+ minor-league pitching (kept)** | **9.568** | 9.222 | 10.012 | 9 of 14 | −1.5 |
+
+The largest single gain since minor-league hitting. 80% cover 77.9% to 76.9%.
+
+**Relief innings follow the role.** With rookie starters competing for the rotation, the outlook
+showed Bubba Chandler as a 145-inning reliever, then (with a flat 100-inning relief cap) Paul
+Skenes. Swapping two pitchers between the rotation and the bullpen barely changes team WAR (the
+replacement levels and the starting penalty cancel), so the staff optimizer split pitchers
+between pools arbitrarily; stamina, which keeps starters in rotations, is not in the rates. Now
+a pitcher's relief innings are at most 100 × (1 − start share) + 10: a pure starter gets long
+relief only, Carmen Mlodzinski (0.29) about 81. No one throws 100+ relief innings; the 2027
+Pirates rotation is Skenes 170, Chandler 145, Ashcraft 140, Jones 115, Keller 110.
+
+**Cost.** Projections now carry about 20,000 rookie pitcher rows; loading them takes several
+minutes (to speed up: keep only rookies on a preseason list before projecting).
 
 ## Status
 
-Adopted in `marcel_staff_optimized` (9.63; Steamer 9.50), now with the relative batter fatigue curve.
+Hitting and pitching adopted in `marcel_staff_optimized` (9.57; Steamer 9.50), with the relative batter
+fatigue curve.
