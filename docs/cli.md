@@ -167,6 +167,28 @@ Reads the saved results without re-running anything. The columns are:
 
 `--pirates` adds a Pirates-only table of prediction errors by season. It is for interest only and is not used to choose models. `--first-season` and `--include-shortened` work as in `backtest`.
 
+## Evaluate: how good a player-projection model is
+
+```
+bucco evaluate
+bucco evaluate --models marcel_staff_optimized steamer_optimized zips_optimized
+bucco team-war --models marcel_staff_optimized steamer_optimized
+```
+
+`evaluate` re-runs each model's team WAR for every season from `--first-season` (default 2012)
+and prints three layers of tables (see [R&D/evaluation.md](R&D/evaluation.md)):
+
+| Table | Meaning |
+| --- | --- |
+| 1. Player projection error | For hitters and pitchers: error of the projected rate (WAR per 600 PA or 180 innings; offense runs per 600 PA or runs per 9 where the source has them), of the playing time the optimizers gave each player, and of their product, production (WAR). Playing time and production are scored on everyone on an Opening Day 40-man or who played, the same players for every model |
+| 2. Forecast error | Team WAR against what each team produced (batting, pitching, total), and team record from the saved wins backtest |
+| 3. Rate against playing time | Team WAR error with perfect playing time and with perfect rates, to show how much of the error is each; "perfect both" is players the model never projected |
+
+Actual WAR is our own park-neutral approximation, so across projection systems the WAR-based
+numbers lean toward our own model; comparisons between versions of one model are fair. `team-war`
+prints only the team-WAR part of table 2 and saves it in `evaluate.team_war_results`. Both take a
+few minutes per model (the lineup and staff optimizers run for every season).
+
 ## Help and troubleshooting
 
 - `bucco --help` and `bucco <command> --help` list every option.
