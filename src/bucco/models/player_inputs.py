@@ -71,6 +71,7 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
                        availability: str = "none", milb: float = 0.0,
                        milb_rookies: bool = False, milb_pitching: float = 0.0,
                        components: tuple[float, ...] | None = None,
+                       roster_source: str = "steamer",
                        path=DUCKDB_PATH) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Marcel projections (bucco.models.marcel) for every player with MLB history in the three
     seasons before each target season, on any team or none: (batters, pitchers). `aging`
@@ -89,7 +90,8 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
     included when above 0), with minor-league innings in the baseline-innings line.
     `components`: batters faced of league average for each part of pitchers' runs
     (marcel.COMPONENTS, in order), each part regressed, aged and translated on its own; None
-    regresses pitching runs as one number."""
+    regresses pitching runs as one number. `roster_source`: whose preseason rosters the innings
+    line and the availability factors are fitted on (`marcel_rosters`)."""
     if not path.exists():
         raise RuntimeError(f"{path} not found. Run `bucco extract all` and `bucco build` first.")
     with duckdb.connect(str(path), read_only=True) as con:
@@ -125,7 +127,7 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
                                        components=None if components is None else
                                        dict(zip(marcel.COMPONENTS, components, strict=True)))
     if innings == "baseline":
-        roster = marcel_rosters(path=path)
+        roster = marcel_rosters(roster_source, path=path)
         keys = set(zip(roster.loc[roster["player_type"] == "pitcher", "season"],
                        roster.loc[roster["player_type"] == "pitcher", "mlbam_id"], strict=True))
         rostered = pd.Series([k in keys for k in zip(pit_frame["season"], pit_frame["mlbam_id"],
@@ -142,7 +144,7 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
         with duckdb.connect(str(path), read_only=True) as con:
             status = con.sql("select season, mlbam_id, il_group "
                              "from marts.player_preseason_status").df()
-        roster = marcel_rosters(path=path)
+        roster = marcel_rosters(roster_source, path=path)
         relative = availability == "relative"
         # what was delivered: 0 for a completed season he did not play, unknown for the upcoming
         bat_real = bat_frame.assign(actual=bat_frame["target_pa"].fillna(0.0).where(
@@ -327,9 +329,27 @@ def park_fit_team_means(batters: pd.DataFrame, path=DUCKDB_PATH) -> pd.Series:
     return (runs * batters["pa"]).groupby(keys).sum() / batters["pa"].groupby(keys).sum()
 
 
+ROSTER_SOURCES = ("steamer", "mlb")
+
+
 def marcel_rosters(roster_source: str = "steamer", path=DUCKDB_PATH) -> pd.DataFrame:
-    """Preseason rosters: season, player_type, mlbam_id, team_id, as_of_date, from the team
-    assignments in `roster_source`'s player files."""
+    """Preseason rosters: season, player_type, mlbam_id, team_id, as_of_date. "steamer": the team
+    assignments in Steamer's player files (from 2012, players beyond the 40-man included). "mlb":
+    each team's Opening Day 40-man roster from the MLB Stats API (marts.player_preseason_status,
+    from 2009), pitchers by roster position (two-way players are both)."""
+    if roster_source not in ROSTER_SOURCES:
+        raise ValueError(f"roster_source must be one of {ROSTER_SOURCES}, not {roster_source!r}")
+    if roster_source == "mlb":
+        with duckdb.connect(str(path), read_only=True) as con:
+            status = con.sql("select season, mlbam_id, team_id, snapshot_date as as_of_date, "
+                             "position from marts.player_preseason_status").df()
+        # each team's snapshot is its own Opening Day; date them all to the season's first, so a
+        # forecast made on Opening Day keeps teams that open later (the openers abroad)
+        status["as_of_date"] = status.groupby("season")["as_of_date"].transform("min")
+        keep = ["season", "player_type", "mlbam_id", "team_id", "as_of_date"]
+        pitchers = status[status["position"].isin(["P", "TWP"])].assign(player_type="pitcher")
+        batters = status[status["position"] != "P"].assign(player_type="batter")
+        return pd.concat([batters[keep], pitchers[keep]], ignore_index=True)
     with duckdb.connect(str(path), read_only=True) as con:
         roster = con.execute("select distinct season, player_type, mlbam_id, team_id, as_of_date "
                              "from marts.player_projections where source = ? "
@@ -355,8 +375,9 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
                      pitcher_components: bool = False, path=DUCKDB_PATH) -> PlayerData:
     """Our own Marcel projections on each team's preseason roster.
 
-    Rosters are the team assignments in `roster_source`'s player files (players listed for
-    each team before Opening Day); only who is on which team is taken from them. Players on a
+    Rosters are `roster_source`'s preseason rosters (`marcel_rosters`: Steamer's team
+    assignments, or the MLB Stats API's Opening Day 40-man rosters); only who is on which team is
+    taken from them. Players on a
     roster with no MLB history in the three prior seasons get no projection (unless
     `milb_rookies`). `park_fit` adds each batter's fit to his 2027 (target-season) park,
     centered on his team. `fielding`, `availability`, `milb` and `milb_rookies`: see
@@ -371,7 +392,7 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
                   if pitcher_components else None)
     batters, pitchers = marcel_projections(aging, prior, park, fielding, innings,
                                            availability, milb, milb_rookies, milb_pitching,
-                                           components, path=path)
+                                           components, roster_source, path=path)
     roster = marcel_rosters(roster_source, path)
     with duckdb.connect(str(path), read_only=True) as con:
         positions = con.sql("select season, mlbam_id, position, games "
@@ -409,14 +430,15 @@ def make_marcel_staff_optimized_model() -> DepthChartModel:
     playing time scaled by Opening Day 40-man status (bucco.models.availability), and batters'
     and pitchers' minor-league history (major-league equivalents, bucco.models.milb), rookies
     included; batters' fatigue curve relative to their projected PA (lineup_optimizer.RELATIVE);
-    pitchers' runs regressed by part (strikeouts, walks, home runs, the rest)."""
+    pitchers' runs regressed by part (strikeouts, walks, home runs, the rest); on the MLB Stats
+    API's Opening Day 40-man rosters, so it is scored from 2009."""
     return DepthChartModel(load_marcel_data("optimized", aging=True, prior="fitted", park=True,
                                             fielding=True, innings="baseline",
                                             pitcher_playing_time="optimized",
                                             availability="absolute", milb=mle.MILB_WEIGHT,
                                             milb_rookies=True, relative_fatigue=True,
                                             milb_pitching=mle.PITCHER_MILB_WEIGHT,
-                                            pitcher_components=True),
+                                            pitcher_components=True, roster_source="mlb"),
                            name="marcel_staff_optimized")
 
 

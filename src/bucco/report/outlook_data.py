@@ -46,17 +46,20 @@ MODEL_SOURCE = {"steamer_optimized": "steamer", "steamer": "steamer", "depth_cha
 # Marcel source -> (aging, what rates are shrunk toward, park-neutral, fielding from Steamer
 # and ZiPS, pitcher innings, availability from Opening Day 40-man status, weight of minor-league
 # PA, rookies from minor-league history, weight of minor-league batters faced[, pitchers' runs
-# regressed by part: marcel.COMPONENT_REG_BF]), as in the models
+# regressed by part: marcel.COMPONENT_REG_BF, preseason rosters]), as in the models
 _NONE = ("none", 0.0, False, 0.0)
 MARCEL_SETTINGS = {"marcel_park": (True, "fitted", True, False, "marcel", *_NONE),
                    "marcel_park_fielding": (True, "fitted", True, True, "marcel", *_NONE),
                    "marcel_staff": (True, "fitted", True, True, "baseline", "absolute", 0.5,
                                     True, 0.5, tuple(marcel.COMPONENT_REG_BF[p]
-                                                     for p in marcel.COMPONENTS))}
+                                                     for p in marcel.COMPONENTS), "mlb")}
 STAFF_OPTIMIZED = {"marcel_staff"}   # sources whose innings come from the staff optimizer
 # lineup optimizer settings by source, as in the models (default: the absolute curve)
 OPTIMIZER_OPTIONS = {"marcel_staff": lo.RELATIVE}
-MARCEL_ROSTERS = "steamer"   # whose preseason rosters and unsigned list Marcel is put on
+# whose preseason rosters Marcel is put on, by source (default Steamer's); the unsigned list is
+# always Steamer's players with no team, less anyone on those rosters
+MARCEL_ROSTERS = {"marcel_staff": "mlb"}
+UNSIGNED_SOURCE = "steamer"
 SPOTS = ["Rotation", "Bullpen", *lo.POSITIONS]      # rows of the position comparison
 STRONG_RANK = 10          # a spot ranked this high or better is a strength
 WEAK_RANK = 21            # this low or worse is a weakness
@@ -336,7 +339,7 @@ def marcel_rows(source: str, season: int, path=DUCKDB_PATH,
     bat_all = bat_all[bat_all["season"] == season].rename(
         columns={"pa": "plate_appearances", "bsr": "bsr_runs"})
     pit_all = pit_all[pit_all["season"] == season]
-    roster = marcel_rosters(MARCEL_ROSTERS, path)
+    roster = marcel_rosters(MARCEL_ROSTERS.get(source, "steamer"), path)
     roster = roster[roster["season"] == season]
     batters = on_rosters(bat_all, roster, "batter")
     team_pit = on_rosters(pit_all, roster, "pitcher")
@@ -350,10 +353,11 @@ def marcel_rows(source: str, season: int, path=DUCKDB_PATH,
     pit_all = pit_all.rename(columns={"ip": "innings_pitched"})
 
     def unsigned(rows: pd.DataFrame, kind: str) -> pd.DataFrame:
-        ids = unsigned_players(MARCEL_ROSTERS, season, kind, projections_dir)
+        ids = unsigned_players(UNSIGNED_SOURCE, season, kind, projections_dir)
         if ids.empty:
             return ids
-        return rows[rows["mlbam_id"].isin(set(ids["mlbam_id"]))].reset_index(drop=True)
+        free = set(ids["mlbam_id"]) - set(roster["mlbam_id"])
+        return rows[rows["mlbam_id"].isin(free)].reset_index(drop=True)
 
     return batters, pitchers, unsigned(bat_all, "batters"), unsigned(pit_all, "pitchers")
 
