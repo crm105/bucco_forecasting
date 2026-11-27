@@ -183,9 +183,10 @@ sources:
 
       - name: player_splits
         description: >
-          Players' season lines split three ways, from 2000: batters at home and on the road
-          (`home`, `road`), batters batting left and right (`bat_left`, `bat_right`), and
-          pitchers against left- and right-side batters (`vs_left`, `vs_right`). One row per
+          Players' season lines split four ways, from 2000: batters at home and on the road
+          (`home`, `road`), batters batting left and right (`bat_left`, `bat_right`), batters
+          against left- and right-handed pitchers (`vs_lhp`, `vs_rhp`), and pitchers against
+          left- and right-side batters (`vs_left`, `vs_right`). One row per
           player, group and split; a traded player's teams are combined. Saved by
           `bucco extract mlb-player-splits`, which checks that each pair adds up to league PA.
         meta:
@@ -194,7 +195,8 @@ sources:
           - name: group
             description: "`batting` or `pitching`."
           - name: split
-            description: "`home`, `road`, `bat_left`, `bat_right`, `vs_left` or `vs_right`."
+            description: "`home`, `road`, `bat_left`, `bat_right`, `vs_lhp`, `vs_rhp`, `vs_left` or
+              `vs_right`."
           - name: pa
             description: Plate appearances (batters faced for pitchers) in the split.
 

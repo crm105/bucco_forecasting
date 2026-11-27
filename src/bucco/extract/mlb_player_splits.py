@@ -1,11 +1,13 @@
 """MLB Stats API: players' season lines split by home/road and by batter side.
 
-Three league-wide requests per season:
+Four league-wide requests per season:
 
 * batters at home and on the road (`h`, `a`): used to measure how each park treats left- and
   right-side hitters differently (park_factors_by_side), from each team's own hitters;
 * batters batting left and batting right (`l`, `r`): each batter's side mix (switch hitters bat
   from both sides);
+* batters against left- and right-handed pitchers (`vl`, `vr`, named vs_lhp and vs_rhp): each
+  batter's platoon mix and split;
 * pitchers against left- and right-side batters (`vl`, `vr`): each pitcher's mix of batters.
 
 One row per player and split, with full-season counts (a traded player's home games at several
@@ -32,9 +34,10 @@ SPLITS_DIR = CACHE_DIR / "mlb_api" / "player_splits"
 STATS_LIMIT = 10_000
 # (API group, situation codes) -> our group; split codes -> our names
 REQUESTS = [("hitting", "h,a", "batting"), ("hitting", "l,r", "batting"),
-            ("pitching", "vl,vr", "pitching")]
+            ("hitting", "vl,vr", "batting"), ("pitching", "vl,vr", "pitching")]
 SPLITS = {"h": "home", "a": "road", "l": "bat_left", "r": "bat_right",
           "vl": "vs_left", "vr": "vs_right"}
+BATTER_VS = {"vl": "vs_lhp", "vr": "vs_rhp"}     # a batter's split against the pitcher's hand
 STATS = {"runs": "runs", "hits": "h", "doubles": "doubles", "triples": "triples",
          "homeRuns": "hr", "baseOnBalls": "bb", "intentionalWalks": "ibb", "hitByPitch": "hbp",
          "strikeOuts": "so"}
@@ -53,8 +56,9 @@ def parse_player_splits(payload: dict, season: int, group: str,
                 continue
             stat = split["stat"]
             pa = stat.get("plateAppearances") if group == "batting" else stat.get("battersFaced")
+            name = BATTER_VS.get(code, SPLITS[code]) if group == "batting" else SPLITS[code]
             row = {"season": season, "mlbam_id": split["player"]["id"], "group": group,
-                   "split": SPLITS[code], "last_team_id": (split.get("team") or {}).get("id"),
+                   "split": name, "last_team_id": (split.get("team") or {}).get("id"),
                    "num_teams": int(split.get("numTeams") or 1), "pa": int(pa or 0)}
             row.update({ours: int(stat.get(api) or 0) for api, ours in STATS.items()})
             row["fetched_at"] = fetched_at
@@ -76,7 +80,8 @@ def fetch_player_splits(season: int) -> pd.DataFrame:
 
 def validate_player_splits(df: pd.DataFrame, season: int) -> None:
     """Every pair of splits must cover the same plate appearances (home + road = left + right
-    = pitchers' batters faced against left + right), and no player may appear twice in a split."""
+    = against left- + right-handed pitchers = pitchers' batters faced against left + right), and
+    no player may appear twice in a split."""
     problems = []
     if len(df) >= STATS_LIMIT:
         problems.append(f"{len(df)} rows reaches the request limit; some are missing")
@@ -84,6 +89,7 @@ def validate_player_splits(df: pd.DataFrame, season: int) -> None:
         problems.append("a player appears twice in one split")
     totals = df.groupby("split")["pa"].sum()
     pairs = {"home/road": ("home", "road"), "batting left/right": ("bat_left", "bat_right"),
+             "batters vs left/right-handed pitchers": ("vs_lhp", "vs_rhp"),
              "pitchers vs left/right": ("vs_left", "vs_right")}
     sums = {name: int(totals.get(a, 0) + totals.get(b, 0)) for name, (a, b) in pairs.items()}
     reference = sums["home/road"]
