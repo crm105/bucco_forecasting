@@ -1,9 +1,14 @@
-"""Learned hitter plate appearances, on top of Marcel.
+"""Learned hitter plate appearances and offense, on top of Marcel.
 
-One model, fitted walk-forward and tuned per target season (bucco.models.ml.core): next season's
-MLB plate appearances for every hitter on an Opening Day 40-man roster (0 if none), with our
-pipeline's PA (Marcel's playing time scaled by Opening Day status) as an input. Scored and tuned
-on plain (unweighted) RMSE, one row per rostered hitter.
+Two models, fitted walk-forward and tuned per target season (bucco.models.ml.core):
+
+* PA: next season's MLB plate appearances for every hitter on an Opening Day 40-man roster (0 if
+  none), with our pipeline's PA (Marcel's playing time scaled by Opening Day status) as an input.
+  Scored and tuned on plain (unweighted) RMSE, one row per rostered hitter.
+* offense: next season's park-neutral offense runs per 600 PA for every hitter Marcel projects,
+  fitted on hitters with 100+ PA (weighted by PA), with Marcel's rate and Statcast inputs
+  (`core.with_statcast`: xwOBA, exit velocity, barrel, whiff and chase rates, sprint speed and
+  more, from 2015).
 
 Inputs, from the three seasons before (`history`): MLB and minor-league lines combined as one
 season (plate appearances, games, offense runs per 600 PA, strikeout, walk, home-run and stolen-
@@ -13,10 +18,10 @@ season, Marcel's offense, defense and WAR per 600 PA, Opening Day status this se
 and roster context (`roster_context`: where he stands among his team's hitters and at his main
 position last season). Unknown values (injured list before 2009, minor leagues before 2006) are left missing.
 
-The model's PA are used as given (`apply`: offense, defense and WAR scale with the PA; no lineup
+The models' PA are used as given and their offense replaces Marcel's (`apply`; no lineup
 optimizer), in `marcel_ml_hitter_pa`. `fit_and_save` (`bucco fit-ml --targets hitters`) saves
-every season's predictions from FIRST_PREDICTED to the upcoming one to PREDICTIONS. Learned hitter
-rates were tried and tie Marcel's, so they are not modeled. See docs/R&D/ml_playing_time.md.
+every season's predictions from FIRST_PREDICTED to the upcoming one to PREDICTIONS. See
+docs/R&D/ml_playing_time.md and docs/R&D/statcast_rates.md.
 """
 
 from __future__ import annotations
@@ -35,15 +40,19 @@ from bucco.models.ml.core import (
     lagged,
     opening_day,
     score,
+    statcast_features,
     walk_forward,
     with_il,
+    with_statcast,
 )
 
 log = logging.getLogger(__name__)
 
 PREDICTIONS = CACHE_DIR / "derived" / "ml_hitters.parquet"
 FIRST_PREDICTED = 2012          # the first season with two earlier roster seasons to tune on
-FIRST_TRAIN = 2009              # the first Opening Day roster season
+FIRST_TRAIN = 2009              # the first Opening Day roster season (PA model)
+FIRST_RATE_TRAIN = 2004         # offense model
+MIN_RATE_PA = 100.0
 COUNTS = ["pa", "ab", "h", "doubles", "triples", "hr", "bb", "so", "sb", "sf"]
 RATES = ["k", "bbr", "hrr", "sbr", "iso", "babip"]
 LAGS = ["pa", "games", "milb_share", "milb_level", "off600", *RATES, "il_days", "il_stints",
@@ -53,6 +62,8 @@ CONTEXT = ["ctx_rank_team", "ctx_team_n", "ctx_pipe_share", "ctx_team_pipe", "ct
            "ctx_n_pos", "ctx_pos_pipe", "ctx_gap_pos", "ctx_is_c", "ctx_no_pos"]
 PA_FEATURES = ["age", "season", "marcel_off600", "marcel_def600", "marcel_war600", "pipe",
                *OPENING_DAY, *CONTEXT] + [f"y{k}_{c}" for k in (1, 2, 3) for c in LAGS]
+RATE_FEATURES = ["age", "season", "marcel_off600", *statcast_features("batter")] \
+    + [f"y{k}_{c}" for k in (1, 2, 3) for c in LAGS]
 
 
 def _rates(x: pd.DataFrame) -> pd.DataFrame:
@@ -136,16 +147,18 @@ def roster_context(rows: pd.DataFrame, positions: pd.DataFrame) -> pd.DataFrame:
     return rows.drop(columns="position")
 
 
-def frames(batters: pd.DataFrame, roster: pd.DataFrame, path=DUCKDB_PATH) -> pd.DataFrame:
-    """PA rows: every Marcel hitter projection on an Opening Day roster, with inputs, target y
-    (actual PA, 0 if none; unknown for the upcoming season) and weight vol (1)."""
+def frames(batters: pd.DataFrame, roster: pd.DataFrame,
+           path=DUCKDB_PATH) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """(offense rows: every Marcel hitter projection, target y = actual offense runs per 600 PA,
+    weight vol = actual PA; PA rows: those on an Opening Day roster, target y = actual PA, 0 if
+    none, weight vol = 1), with inputs; targets unknown for the upcoming season."""
     from bucco.models.player_inputs import on_rosters
 
     with duckdb.connect(str(path), read_only=True) as con:
         status = con.sql("select season, mlbam_id, il_group "
                          "from marts.player_preseason_status").df()
-        actual = con.sql("select season, mlbam_id, pa as act_pa from marts.player_batting_seasons "
-                         "where not is_pitcher").df()
+        actual = con.sql("select season, mlbam_id, pa as act_pa, off_runs_neutral as act_runs "
+                         "from marts.player_batting_seasons where not is_pitcher").df()
         positions = con.sql("select season, mlbam_id, position, games "
                             "from marts.player_position_games").df()
     b = batters[["season", "mlbam_id", "age", "pa", "off_runs", "def_runs", "war"]].copy()
@@ -155,21 +168,25 @@ def frames(batters: pd.DataFrame, roster: pd.DataFrame, path=DUCKDB_PATH) -> pd.
     b["marcel_war600"] = b["war"] / pa * 600
     b = lagged(b.drop(columns=["pa", "off_runs", "def_runs", "war"]), history(path), LAGS,
                VOLUMES)
+    rate = with_statcast(b, "batter", path).merge(actual, on=["season", "mlbam_id"], how="left")
+    rate["y"] = rate["act_runs"] / rate["act_pa"].where(rate["act_pa"] > 0) * 600
+    rate["vol"] = rate["act_pa"]
     on = on_rosters(batters[["season", "mlbam_id", "pa"]], roster, "batter")
     rows = on[["season", "mlbam_id", "team_id", "pa"]].rename(columns={"pa": "pipe"}) \
         .drop_duplicates(["season", "mlbam_id"]).merge(b, on=["season", "mlbam_id"])
     rows = roster_context(rows, positions)
-    rows = opening_day(rows, status).merge(actual, on=["season", "mlbam_id"], how="left")
+    rows = opening_day(rows, status).merge(actual[["season", "mlbam_id", "act_pa"]],
+                                           on=["season", "mlbam_id"], how="left")
     last = int(actual["season"].max())
     rows["y"] = rows["act_pa"].fillna(0.0).where(rows["season"] <= last)
     rows["vol"] = 1.0
-    return rows.drop(columns="act_pa")
+    return rate.drop(columns=["act_pa", "act_runs"]), rows.drop(columns="act_pa")
 
 
-def fit_and_save(path=DUCKDB_PATH, out=PREDICTIONS, features=None) -> pd.DataFrame:
-    """Fit the PA model walk-forward for every season from FIRST_PREDICTED to the upcoming one and
-    save season, mlbam_id, ml_pa to `out` (None: don't save). Holdout scores (model against the
-    pipeline's PA) are in .attrs["scores"]."""
+def fit_and_save(path=DUCKDB_PATH, out=PREDICTIONS) -> pd.DataFrame:
+    """Fit both models walk-forward for every season from FIRST_PREDICTED to the upcoming one and
+    save season, mlbam_id, ml_pa (rostered hitters) and ml_off600 to `out` (None: don't save).
+    Holdout scores (each against our pipeline's PA or Marcel's rate) are in .attrs["scores"]."""
     from bucco.models.player_inputs import (
         marcel_projections,
         marcel_rosters,
@@ -177,15 +194,21 @@ def fit_and_save(path=DUCKDB_PATH, out=PREDICTIONS, features=None) -> pd.DataFra
     )
 
     batters, _ = marcel_projections(*staff_projection_settings(), path=path)
-    rows = frames(batters, marcel_rosters("mlb", path), path)
+    rate, rows = frames(batters, marcel_rosters("mlb", path), path)
     upcoming = int(batters["season"].max())
     targets = [t for t in range(FIRST_PREDICTED, upcoming + 1) if t != 2020]
+    rate_train = rate[(rate["season"] >= FIRST_RATE_TRAIN) & (rate["vol"] >= MIN_RATE_PA)]
+    log.info("Fitting hitter offense")
+    off = walk_forward(rate_train, rate, RATE_FEATURES, targets, centered=True)
     train = rows[(rows["season"] >= FIRST_TRAIN) & rows["y"].notna()]
     log.info("Fitting hitter PA")
-    pred = walk_forward(train, rows, features or PA_FEATURES, targets, centered=False)
+    pred = walk_forward(train, rows, PA_FEATURES, targets, centered=False)
     pred["pred"] = pred["pred"].clip(lower=0.0)
-    scores = score(pred, rows, centered=False, baseline="pipe")
-    preds = pred.rename(columns={"pred": "ml_pa"})
+    scores = {"offense": score(off, rate[rate["vol"] >= MIN_RATE_PA], centered=True,
+                               baseline="marcel_off600"),
+              "PA": score(pred, rows, centered=False, baseline="pipe")}
+    preds = off.rename(columns={"pred": "ml_off600"}).merge(
+        pred.rename(columns={"pred": "ml_pa"}), on=["season", "mlbam_id"], how="outer")
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
         preds.to_parquet(out)
@@ -199,16 +222,30 @@ def load_predictions(path=PREDICTIONS) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
-def apply(batters: pd.DataFrame, preds: pd.DataFrame) -> pd.DataFrame:
-    """Marcel hitter projections with the learned PA (ml_pa) where there are any: offense,
-    defense, fielding, baserunning and WAR scale with the PA, so rates are Marcel's."""
-    b = batters.merge(preds[["season", "mlbam_id", "ml_pa"]]
+def apply(batters: pd.DataFrame, preds: pd.DataFrame,
+          runs_per_win: pd.Series | None = None, path=DUCKDB_PATH) -> pd.DataFrame:
+    """Marcel hitter projections with the learned PA (ml_pa) and offense (ml_off600) where there
+    are any. Offense, defense, fielding, baserunning and WAR scale with the PA; then the offense
+    rate becomes the learned one and WAR moves by the change at the runs per win of the season
+    before (`runs_per_win`, by target season; default from marts.league_seasons)."""
+    cols = [c for c in ("ml_pa", "ml_off600") if c in preds]
+    b = batters.merge(preds[["season", "mlbam_id", *cols]]
                       .drop_duplicates(["season", "mlbam_id"]),
                       on=["season", "mlbam_id"], how="left")
-    new = b["ml_pa"].fillna(b["pa"])
+    new = b["ml_pa"].fillna(b["pa"]) if "ml_pa" in b else b["pa"]
     f = (new / b["pa"].where(b["pa"] > 0)).fillna(0.0)
     for c in ("off_runs", "def_runs", "fld_runs", "bsr", "war"):
         if c in b:
             b[c] = b[c] * f
     b["pa"] = new
-    return b.drop(columns="ml_pa")
+    if "ml_off600" in b and b["ml_off600"].notna().any():
+        if runs_per_win is None:
+            with duckdb.connect(str(path), read_only=True) as con:
+                lg = con.sql("select season + 1 as season, runs_per_win "
+                             "from marts.league_seasons").df()
+            runs_per_win = lg.set_index("season")["runs_per_win"]
+        rpw = b["season"].map(runs_per_win)
+        off = (b["ml_off600"] / 600.0 * b["pa"]).where(b["ml_off600"].notna(), b["off_runs"])
+        b["war"] = b["war"] + (off - b["off_runs"]) / rpw
+        b["off_runs"] = off
+    return b.drop(columns=cols)

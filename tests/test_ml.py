@@ -105,3 +105,14 @@ def test_pitcher_roster_context_ranks_the_rotation_and_the_fifth_starter_gap():
     assert out.loc[5, "ctx_gap5"] == pytest.approx(-0.5)
     assert out.loc[6, "ctx_rp_rank"] == 1.0 and np.isnan(out.loc[6, "ctx_rot_rank"])
     assert out.loc[0, "ctx_n_sp"] == 6 and out.loc[0, "ctx_rot_ip"] == pytest.approx(900.0)
+
+
+def test_learned_offense_replaces_marcels_rate_and_moves_war():
+    b = pd.DataFrame({"season": [2024, 2024], "mlbam_id": [1, 2], "pa": [600.0, 300.0],
+                      "off_runs": [12.0, -3.0], "def_runs": [3.0, 1.0], "war": [3.0, 0.5]})
+    preds = pd.DataFrame({"season": [2024], "mlbam_id": [1], "ml_pa": [450.0],
+                          "ml_off600": [20.0]})
+    out = mlh.apply(b, preds, runs_per_win=pd.Series({2024: 10.0})).set_index("mlbam_id")
+    assert out.loc[1, "off_runs"] == pytest.approx(15.0)        # 20 per 600 at 450 PA
+    assert out.loc[1, "war"] == pytest.approx(2.25 + (15.0 - 9.0) / 10.0)
+    assert out.loc[2, ["off_runs", "war"]].tolist() == [-3.0, 0.5]

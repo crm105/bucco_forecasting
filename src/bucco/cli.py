@@ -215,8 +215,9 @@ def _fit_ml(args: argparse.Namespace) -> None:
                   f"{preds['season'].max()}, to {pitchers.PREDICTIONS[args.roster]}")
     if "hitters" in args.targets:
         preds = hitters.fit_and_save(out=None if args.no_save else hitters.PREDICTIONS)
-        print("Hitter PA (holdout RMSE; baseline: our pipeline):")
-        print(preds.attrs["scores"].to_string(**fmt), "\n")
+        for name, table in preds.attrs["scores"].items():
+            print(f"Hitter {name} (holdout RMSE; baseline: Marcel or our pipeline):")
+            print(table.to_string(**fmt), "\n")
         if not args.no_save:
             print(f"Saved {len(preds)} hitter predictions, {preds['season'].min()}-"
                   f"{preds['season'].max()}, to {hitters.PREDICTIONS}")
