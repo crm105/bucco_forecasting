@@ -202,8 +202,8 @@ upcoming season:
 
 | Target | Models | Saved to | Read by |
 | --- | --- | --- | --- |
-| `pitchers` | innings, FIP-based rate (about 30 minutes) | `data/cache/derived/ml_pitchers.parquet` | `marcel_ml_pitchers`, `marcel_ml_hitter_pa` |
-| `hitters` | plate appearances (a few minutes) | `data/cache/derived/ml_hitters.parquet` | `marcel_ml_hitter_pa` |
+| `pitchers` | innings, FIP-based rate with Statcast inputs (about 75 minutes) | `data/cache/derived/ml_pitchers.parquet` | `marcel_ml_pitchers`, `marcel_ml_hitter_pa` |
+| `hitters` | offense runs per 600 PA with Statcast inputs, plate appearances (about an hour) | `data/cache/derived/ml_hitters.parquet` | `marcel_ml_hitter_pa` |
 
 Rerun after new data or projections, before `backtest` or `forecast`. `--no-save` scores a change
 without replacing the saved predictions. `--roster mlb_org` fits the pitcher innings model on
