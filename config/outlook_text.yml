@@ -84,7 +84,10 @@ runs_intro: >-
 leaders_heading: "Projected leaders"
 # {rate}, {pitchers}
 leaders_note: >-
-  Batters: PA, main position and WAR from the optimized lineup ({rate}).
+  The top 20 of each. Batters: PA at every position the optimized lineup plays them, most
+  first, and WAR ({rate}). The lineup optimizer picks positions from where each player played
+  last season (20 or more games, or his most-played position) and lets him move elsewhere only
+  at a fielding cost; only players who caught can catch.
   Pitchers: {pitchers}.
 
 # {division}
@@ -235,13 +238,15 @@ source_notes:
       counted in the one he throws most of his innings in
     rate: "wRC+ is approximate: projected park-neutral batting runs against the league"
     pitchers: >-
-      innings and WAR after the staff optimizer shares out the team's innings, from learned
-      innings and rates; each pitcher is listed in the role he throws most of his innings in
+      innings in the rotation (SP) and in relief (RP) after the staff optimizer shares out the
+      team's innings, from learned innings and rates. Each team's best reliever (closer) and
+      next three (setup) pitch in closer games, so their relief WAR counts 2.0 and 1.5 times, as
+      in the forecast
     division: "pitching from the staff optimizer"
     unsigned: >-
       Players the Steamer file lists with no team are unsigned; every number here is our own
-      projection except fielding, which is the average of Steamer's and ZiPS's projected
-      defense (Steamer's alone where ZiPS has none). Unsigned pitchers are shown at their own
+      projection; fielding is our Statcast projection where a player has Statcast fielding,
+      otherwise the average of Steamer's and ZiPS's projected defense. Unsigned pitchers are shown at their own
       baseline innings, with learned rates.
   marcel_ml_pa:
     <<: *marcel
@@ -254,12 +259,14 @@ source_notes:
       one he throws most of his innings in
     rate: "wRC+ is approximate: projected park-neutral batting runs against the league"
     pitchers: >-
-      innings and WAR after the staff optimizer shares out the team's innings, from learned
-      innings and rates; each pitcher is listed in the role he throws most of his innings in
+      innings in the rotation (SP) and in relief (RP) after the staff optimizer shares out the
+      team's innings, from learned innings and rates. Each team's best reliever (closer) and
+      next three (setup) pitch in closer games, so their relief WAR counts 2.0 and 1.5 times, as
+      in the forecast
     division: "pitching from the staff optimizer"
     unsigned: >-
       Players the Steamer file lists with no team are unsigned; every number here is our own
-      projection except fielding, which is the average of Steamer's and ZiPS's projected
-      defense (Steamer's alone where ZiPS has none). Unsigned hitters are shown at Marcel's
+      projection; fielding is our Statcast projection where a player has Statcast fielding,
+      otherwise the average of Steamer's and ZiPS's projected defense. Unsigned hitters are shown at Marcel's
       PA, unsigned pitchers at their own baseline innings, with learned rates.
     list: "the Steamer file"

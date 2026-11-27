@@ -344,12 +344,20 @@ def render_outlook(data: dict, text: dict | None = None) -> str:
         f"<tr><td>{run_names[k]}</td><td>{escape(_signed(v['value']))}</td>"
         f"<td>{escape(_signed(v['avg']))}</td><td>{ordinal(v['rank'])}</td></tr>"
         for k, v in runs.items())
+    def spread(where, tag=None) -> str:
+        text = ", ".join(f"{q} {x:.0f}" for q, x in where)
+        return text + (f" ({tag})" if tag else "")
+
     bat_rows = "".join(
-        f"<tr><td>{escape(b['name'])}</td><td>{escape(b['position'])}</td><td>{b['pa']:.0f}</td>"
+        f"<tr><td>{escape(b['name'])}</td>"
+        f"<td>{escape(spread(b.get('where') or [(b['position'], b['pa'])]))}</td>"
+        f"<td>{b['pa']:.0f}</td>"
         f"<td>{_num(b['wrc_plus'])}</td>"
         f"<td>{b['war']:.1f}</td></tr>" for b in data["leaders"]["batters"])
     arm_rows = "".join(
-        f"<tr><td>{escape(a['name'])}</td><td>{a['role']}</td><td>{a['ip']:.0f}</td>"
+        f"<tr><td>{escape(a['name'])}</td>"
+        f"<td>{escape(spread(a.get('where') or [(a['role'], a['ip'])], a.get('leverage')))}</td>"
+        f"<td>{a['ip']:.0f}</td>"
         f"<td>{_num(a['fip'], '.2f')}</td><td>{a['war']:.1f}</td></tr>"
         for a in data["leaders"]["pitchers"])
 
@@ -477,9 +485,9 @@ def render_outlook(data: dict, text: dict | None = None) -> str:
 <h2>{fill(text['leaders_heading'])}</h2>
 <p class="muted">{fill(text['leaders_note'], rate=notes['rate'], pitchers=notes['pitchers'])}</p>
 <div class="cols">
-<div class="scroll"><table><tr><th>Batter</th><th>Pos</th><th>PA</th><th>wRC+</th><th>WAR</th></tr>
+<div class="scroll"><table><tr><th>Batter</th><th>Positions (PA)</th><th>PA</th><th>wRC+</th><th>WAR</th></tr>
 {bat_rows}</table></div>
-<div class="scroll"><table><tr><th>Pitcher</th><th>Role</th><th>IP</th><th>FIP</th><th>WAR</th></tr>
+<div class="scroll"><table><tr><th>Pitcher</th><th>Roles (IP)</th><th>IP</th><th>FIP</th><th>WAR</th></tr>
 {arm_rows}</table></div>
 </div>
 

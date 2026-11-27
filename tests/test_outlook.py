@@ -112,9 +112,13 @@ def _data():
                  "baserunning": {"value": 0.9, "avg": -0.3, "rank": 11},
                  "defense": {"value": -29.9, "avg": -20.9, "rank": 23}},
         "leaders": {"batters": [{"name": "Bat One", "position": "SS", "pa": 650.0,
+                                 "where": [("SS", 600.0), ("2B", 50.0)],
                                  "wrc_plus": 108.0, "war": 3.5}],
                     "pitchers": [{"name": f"Arm {i}", "role": "SP", "ip": 170.0, "fip": None,
-                                  "war": w} for i, w in enumerate([4.7, 3.8, 3.3])]},
+                                  "where": [("SP", 170.0)], "leverage": None,
+                                  "war": w} for i, w in enumerate([4.7, 3.8, 3.3])]
+                    + [{"name": "Closer", "role": "RP", "ip": 65.0, "fip": 3.1,
+                        "where": [("RP", 65.0)], "leverage": "closer", "war": 2.0}]},
         "division": {"name": "NL Central", "rows": div},
         "schedule": {"wins": 0.3, "easiest_rank": 9},
         "free_agents": {
@@ -156,6 +160,7 @@ def test_render_produces_valid_charts_and_the_key_facts():
     assert "<td>+2.0</td><td>−1.2</td>" in page        # park fit beside the gain
     assert "<td>+1.3</td><td>—</td>" in page           # unknown park fit: a dash
     assert "at PNC Park compared with" in text and "not in the gain" in text
+    assert "SS 600, 2B 50" in text and "RP 65 (closer)" in text   # leaders' positions
     assert "{" not in text                             # every placeholder filled
 
 
@@ -174,3 +179,21 @@ def test_every_source_has_its_wording_and_marcel_says_where_its_numbers_come_fro
 def test_outlook_path_names_model_team_and_date(tmp_path):
     path = orr.outlook_path(_data(), tmp_path)
     assert path == tmp_path / "2027" / "steamer_optimized_pit_outlook_2026-11-23.html"
+
+
+def test_leaders_list_every_position_and_role_with_leverage_tiers():
+    alloc = pd.DataFrame({"team_id": [1, 1, 1, 2], "mlbam_id": [10, 10, 11, 20],
+                          "player_name": ["Util", "Util", "Cat", "Other"],
+                          "position": ["2B", "1B", "C", "SS"],
+                          "pa": [211.0, 114.0, 500.0, 600.0], "war": [0.2, 0.1, 2.0, 3.0]})
+    batters = pd.DataFrame({"team_id": [1, 1], "mlbam_id": [10, 11], "wrc_plus": [90.0, 100.0]})
+    pitchers = pd.DataFrame({"team_id": [1, 1], "player_name": ["Ace", "Closer"],
+                             "role": ["SP", "RP"], "innings_pitched": [190.0, 65.0],
+                             "sp_ip": [180.0, 0.0], "rp_ip": [10.0, 65.0],
+                             "leverage": [None, "closer"], "fip": [3.0, 2.8],
+                             "war": [5.0, 2.4]})
+    bats, arms = od.leaders(alloc, batters, pitchers, 1)
+    assert [b["name"] for b in bats] == ["Cat", "Util"]
+    assert bats[1]["where"] == [("2B", 211.0), ("1B", 114.0)] and bats[1]["position"] == "2B"
+    assert arms[0]["where"] == [("SP", 180.0), ("RP", 10.0)] and arms[0]["leverage"] is None
+    assert arms[1]["where"] == [("RP", 65.0)] and arms[1]["leverage"] == "closer"

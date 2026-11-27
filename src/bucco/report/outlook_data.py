@@ -30,6 +30,7 @@ from bucco.evaluate.metrics import Z_80
 from bucco.extract.projections import INPUT_DIR
 from bucco.models import lineup_optimizer as lo
 from bucco.models import marcel
+from bucco.models import staff_optimizer as so
 from bucco.models.base import GAMES
 from bucco.models.scenario import compare_lineups, unsigned_players
 from bucco.models.schedule import neutral_from_adjusted
@@ -64,6 +65,7 @@ MARCEL_SETTINGS["marcel_ml_pa"] = MARCEL_SETTINGS["marcel_ml"]
 ML_PITCHERS = {"marcel_ml", "marcel_ml_pa"}
 ML_HITTERS = {"marcel_ml_pa"}   # learned hitter PA (ml.hitters), each one's cap in the lineup
 STAFF_OPTIMIZED = {"marcel_staff", "marcel_ml", "marcel_ml_pa"}   # innings: staff optimizer
+LEVERAGE_SOURCES = {"marcel_ml", "marcel_ml_pa"}  # closer and setup WAR weighted (STAFF_SETTINGS)
 # lineup optimizer settings by source, as in the models (default: the absolute curve)
 OPTIMIZER_OPTIONS = {"marcel_staff": lo.RELATIVE, "marcel_ml": lo.RELATIVE,
                      "marcel_ml_pa": lo.RELATIVE}
@@ -74,7 +76,7 @@ UNSIGNED_SOURCE = "steamer"
 SPOTS = ["Rotation", "Bullpen", *lo.POSITIONS]      # rows of the position comparison
 STRONG_RANK = 10          # a spot ranked this high or better is a strength
 WEAK_RANK = 21            # this low or worse is a weakness
-LEADERS = 9               # players per leaders table
+LEADERS = 20              # players per leaders table
 FA_CANDIDATES = 40        # unsigned batters re-optimized (best by WAR per 600 PA)
 FA_MIN_PA = 150           # projected PA for an unsigned batter to be screened
 FA_SHOWN = 10
@@ -201,21 +203,36 @@ def run_components(alloc: pd.DataFrame, inputs: pd.DataFrame, batters: pd.DataFr
 
 def leaders(alloc: pd.DataFrame, batters: pd.DataFrame, pitchers: pd.DataFrame,
             team_id: int, n: int = LEADERS) -> tuple[list[dict], list[dict]]:
-    """The team's most valuable batters (optimized lineup) and pitchers (as projected)."""
+    """The team's most valuable batters (optimized lineup) and pitchers (as projected), with
+    every position a batter gets PA at (`where`: (position, PA), most first) and every role a
+    pitcher gets innings in (`where`: (SP or RP, IP); staff-optimized sources only, otherwise
+    his role with all his innings) and, with leverage, his tier (closer or setup)."""
     mine = alloc[(alloc["team_id"] == team_id) & (alloc["mlbam_id"] >= 0)]
-    main = mine.sort_values("pa", ascending=False).drop_duplicates("mlbam_id") \
-        .set_index("mlbam_id")["position"]
+    by_pos = mine.groupby(["mlbam_id", "position"], as_index=False)["pa"].sum()
+    by_pos = by_pos[by_pos["pa"] >= 0.5].sort_values(["mlbam_id", "pa"], ascending=[True, False])
+    where = {i: [(q, float(x)) for q, x in zip(g["position"], g["pa"], strict=True)]
+             for i, g in by_pos.groupby("mlbam_id")}
     agg = mine.groupby("mlbam_id").agg(name=("player_name", "first"), pa=("pa", "sum"),
                                        war=("war", "sum"))
     wrc = batters[batters["team_id"] == team_id].set_index("mlbam_id")["wrc_plus"]
-    agg["position"], agg["wrc_plus"] = main, wrc.reindex(agg.index)
-    bats = [{"name": r.name, "position": r.position, "pa": float(r.pa),
+    agg["wrc_plus"] = wrc.reindex(agg.index)
+    bats = [{"name": r.name, "position": where[r.Index][0][0], "where": where[r.Index],
+             "pa": float(r.pa),
              "wrc_plus": None if pd.isna(r.wrc_plus) else float(r.wrc_plus), "war": float(r.war)}
             for r in agg.sort_values("war", ascending=False).head(n).itertuples()]
     p = pitchers[pitchers["team_id"] == team_id].assign(role=pitcher_roles(pitchers))
-    arms = [{"name": r.player_name, "role": r.role, "ip": float(r.innings_pitched),
-             "fip": None if pd.isna(r.fip) else float(r.fip), "war": float(r.war)}
-            for r in p.sort_values("war", ascending=False).head(n).itertuples()]
+
+    def pools(r) -> list[tuple[str, float]]:
+        if "sp_ip" not in p:
+            return [(r["role"], float(r["innings_pitched"]))]
+        out = [(k, float(r[c])) for k, c in (("SP", "sp_ip"), ("RP", "rp_ip")) if r[c] >= 0.5]
+        return sorted(out, key=lambda t: -t[1])
+
+    arms = [{"name": r["player_name"], "role": r["role"], "where": pools(r),
+             "leverage": r.get("leverage") if isinstance(r.get("leverage"), str) else None,
+             "ip": float(r["innings_pitched"]),
+             "fip": None if pd.isna(r["fip"]) else float(r["fip"]), "war": float(r["war"])}
+            for _, r in p.sort_values("war", ascending=False).head(n).iterrows()]
     return bats, arms
 
 
@@ -366,7 +383,7 @@ def marcel_rows(source: str, season: int, path=DUCKDB_PATH,
     batters = on_rosters(bat_all, roster, "batter")
     team_pit = on_rosters(pit_all, roster, "pitcher")
     if source in STAFF_OPTIMIZED:
-        pitchers = staff_rows(team_pit)
+        pitchers = staff_rows(team_pit, so.LEVERAGE if source in LEVERAGE_SOURCES else None)
     else:
         charts = [dc.build_pitcher_depth_chart(g) for _, g in team_pit.groupby("team_id")]
         pitchers = pd.concat(charts, ignore_index=True) if charts else team_pit.iloc[0:0]
@@ -384,11 +401,15 @@ def marcel_rows(source: str, season: int, path=DUCKDB_PATH,
     return batters, pitchers, unsigned(bat_all, "batters"), unsigned(pit_all, "pitchers")
 
 
-def staff_rows(team_pit: pd.DataFrame) -> pd.DataFrame:
+def staff_rows(team_pit: pd.DataFrame,
+               leverage: tuple[float, float] | None = None) -> pd.DataFrame:
     """Team pitchers with the staff optimizer's innings and WAR (as in the forecast), one row
-    per pitcher: role is the pool (SP rotation, RP relief) he throws most of his innings in."""
+    per pitcher: role is the pool (SP rotation, RP relief) he throws most of his innings in,
+    sp_ip and rp_ip his innings in each. With `leverage` (closer, setup weights), each team's
+    closer and setup men (staff_optimizer.leverage_tiers) are marked in `leverage` and their
+    relief WAR is weighted as in the forecast's team WAR."""
     from bucco.models.depth_chart_model import pitcher_rate
-    from bucco.models.staff_optimizer import optimize_staffs
+    from bucco.models.staff_optimizer import leverage_tiers, optimize_staffs
 
     ip = team_pit["ip"].astype(float)
     alloc = optimize_staffs(team_pit.assign(rate=pitcher_rate(team_pit),
@@ -397,9 +418,15 @@ def staff_rows(team_pit: pd.DataFrame) -> pd.DataFrame:
     by_pool = alloc.pivot_table(index=["team_id", "mlbam_id"], columns="pool", values="ip",
                                 aggfunc="sum").fillna(0.0)
     totals = alloc.groupby(["team_id", "mlbam_id"])[["ip", "war"]].sum()
-    sp = by_pool.get("SP", 0.0)
-    rp = by_pool.get("RP", 0.0)
-    totals["role"] = np.where(sp >= rp, "SP", "RP")
+    totals["sp_ip"] = by_pool.get("SP", 0.0)
+    totals["rp_ip"] = by_pool.get("RP", 0.0)
+    totals["role"] = np.where(totals["sp_ip"] >= totals["rp_ip"], "SP", "RP")
+    totals["leverage"] = None
+    if leverage:
+        tiers = leverage_tiers(alloc).set_index(["team_id", "mlbam_id"])
+        weight = np.where(tiers["tier"] == "closer", leverage[0], leverage[1])
+        totals.loc[tiers.index, "war"] += tiers["war"] * (weight - 1.0)
+        totals.loc[tiers.index, "leverage"] = tiers["tier"]
     totals = totals.reset_index().rename(columns={"ip": "innings_pitched"})
     keep = team_pit.drop(columns=["ip", "war", "role"]).drop_duplicates(["team_id", "mlbam_id"])
     return totals.merge(keep, on=["team_id", "mlbam_id"], how="left")

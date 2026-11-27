@@ -197,17 +197,27 @@ def optimize_staffs(pitchers: pd.DataFrame, min_start_share: float = ROTATION_MI
     return pd.concat(out, ignore_index=True)
 
 
-def leverage_war(alloc: pd.DataFrame, weights: tuple[float, float] = LEVERAGE,
-                 setup: int = SETUP_RELIEVERS, min_ip: float = LEVERAGE_MIN_IP) -> pd.Series:
-    """Extra team WAR from leverage, by team_id: (weight - 1) x relief WAR of each team's closer
-    (weights[0]) and setup men (weights[1]), ranked by relief WAR per inning (see LEVERAGE).
-    alloc: optimize_staffs output (team_id, mlbam_id, pool, ip, war). Players' own WAR is left
-    leverage-free, as actual WAR is."""
+
+def leverage_tiers(alloc: pd.DataFrame, setup: int = SETUP_RELIEVERS,
+                   min_ip: float = LEVERAGE_MIN_IP) -> pd.DataFrame:
+    """Each team's closer and setup men (see LEVERAGE): team_id, mlbam_id, ip and war in relief,
+    and tier ("closer" or "setup"). alloc: optimize_staffs output (team_id, mlbam_id, pool, ip,
+    war). The closer is the reliever with the most relief WAR per inning among those with
+    min_ip relief innings; the next `setup` are the setup men."""
     rp = alloc[(alloc["pool"] == "RP") & (alloc["mlbam_id"] >= 0)]
     rp = rp.groupby(["team_id", "mlbam_id"], as_index=False)[["ip", "war"]].sum()
     rp = rp[rp["ip"] >= min_ip].assign(rate=lambda d: d["war"] / d["ip"])
     rp = rp.sort_values(["team_id", "rate", "mlbam_id"], ascending=[True, False, True])
     rank = rp.groupby("team_id").cumcount()
-    extra = np.select([rank == 0, rank <= setup], [weights[0] - 1.0, weights[1] - 1.0], 0.0)
-    teams = alloc["team_id"].unique()
-    return (rp["war"] * extra).groupby(rp["team_id"]).sum().reindex(teams, fill_value=0.0)
+    rp = rp[rank <= setup].assign(tier=np.where(rank[rank <= setup] == 0, "closer", "setup"))
+    return rp.drop(columns="rate").reset_index(drop=True)
+
+
+def leverage_war(alloc: pd.DataFrame, weights: tuple[float, float] = LEVERAGE,
+                 setup: int = SETUP_RELIEVERS, min_ip: float = LEVERAGE_MIN_IP) -> pd.Series:
+    """Extra team WAR from leverage, by team_id: (weight - 1) x relief WAR of each team's closer
+    (weights[0]) and setup men (weights[1]) (`leverage_tiers`). Players' own WAR is left
+    leverage-free, as actual WAR is."""
+    t = leverage_tiers(alloc, setup, min_ip)
+    extra = t["war"] * np.where(t["tier"] == "closer", weights[0] - 1.0, weights[1] - 1.0)
+    return extra.groupby(t["team_id"]).sum().reindex(alloc["team_id"].unique(), fill_value=0.0)
