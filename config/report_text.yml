@@ -52,13 +52,17 @@ league_intro: "Dot: expected wins. Bar: 80% range. Dashed line: 81 wins. Pirates
 trust_heading: "How much to trust this"
 # {model_label}, {first_season}, {last_season}
 trust_intro: >-
-  This forecast comes from the **{model_label}** model. It is a simple baseline, so treat it as
-  a starting point. Each model is tested by forecasting every MLB team's record for every season
-  from {first_season} to {last_season}, using only information from before that season, and the
-  scores below come from that test. The 2020 season (60 games) is left out of the scores.
+  This forecast comes from the **{model_label}** model. Each model is tested by forecasting every
+  MLB team's record for every season it can cover, using only information from before that season,
+  and the scores below come from that test. Models that use only team records cover every season
+  from {first_season} to {last_season}; models built from player projections cover only the
+  seasons with projection files or rosters (ZiPS from 2011, Steamer from 2012, our own from 2009),
+  so their scores rest on fewer, more recent seasons. The 2020 season (60 games) is left out of
+  the scores.
 table_note: >-
-  Typical miss is the average error. RMSE punishes large misses more. A well-calibrated 80% range
-  should hold about 80% of results.
+  Typical miss is the average error. RMSE punishes large misses more. Some seasons are harder to
+  forecast than others, so models are ranked by RMSE over the seasons every model covers. A
+  well-calibrated 80% range should hold about 80% of results.
 
 past_heading: "The Pirates in past seasons"
 past_intro: >-
@@ -70,7 +74,10 @@ unknowns_heading: "What this forecast does not know"
 # {as_of}
 unknowns:
   - "Trades, signings and injuries that happen after {as_of}."
-  - "Anything about individual players. The current models only use team records."
+  - >-
+    Anything outside the model's inputs. Models that use only team records know nothing about
+    individual players; models built from player projections know the rosters and projections
+    as of {as_of}, not later moves or call-ups.
 
 # {today}, {commit_note}. The note is "Code version ABC." or empty.
 footer: >-
@@ -82,3 +89,14 @@ model_labels:
   constant: "Constant (every team wins 81)"
   last_year: "Last year (every team repeats last season's record)"
   holt: "Smoothed history (each team's past seasons, weighted toward recent ones)"
+  depth_chart: "ZiPS (FanGraphs player projections, shared out by our depth chart)"
+  zips_optimized: "ZiPS, optimized (FanGraphs player projections; our lineup optimizer)"
+  steamer: "Steamer (FanGraphs player projections, each team's WAR summed)"
+  steamer_optimized: "Steamer, optimized (FanGraphs player projections; our lineup optimizer)"
+  blend_optimized: "Steamer and ZiPS blend (both optimized, weight fitted on past seasons)"
+  marcel_staff_optimized: >-
+    Marcel staff-optimized (our own player projections, with lineups and pitching staffs
+    optimized)
+  marcel_ml_pitchers: >-
+    Marcel with learned pitchers (our own player projections, pitcher innings and rates from
+    learned models, with lineups and pitching staffs optimized)

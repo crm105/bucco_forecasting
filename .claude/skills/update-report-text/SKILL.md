@@ -26,8 +26,8 @@ The report's written content lives in **`config/report_text.yml`**. The HTML fil
 - Plain text. `**bold**` becomes bold. Anything else is shown as typed.
 - Keep every `{placeholder}` the entry already uses, unless the feedback asks to drop that number. Only the placeholders in the comment above an entry are allowed.
 - Do not state anything the numbers could contradict. Examples: do not write "a small chance" beside a probability, or "the Pirates are expected to improve" beside a changing wins figure.
-- Keep these facts accurate and present: the 2020 (60-game) season is excluded from the scores; the model is a simple baseline; the data source is the MLB Stats API and personal, non-commercial use; the forecast does not know about events after the as-of date.
-- Do not add claims about how a model works that the code does not do. The current models use only team records.
+- Keep these facts accurate and present: the 2020 (60-game) season is excluded from the scores; models built from player projections are scored on fewer seasons than team-history models; the data source is the MLB Stats API and personal, non-commercial use; the forecast does not know about events after the as-of date.
+- Do not add claims about how a model works that the code does not do. The text is shared by every model: some use only team records, others player projections, so a sentence about how the model works must be true for both (or go in that model's `model_labels` entry).
 - A new model needs an entry under `model_labels`.
 
 ## Out of scope: say so instead of editing
