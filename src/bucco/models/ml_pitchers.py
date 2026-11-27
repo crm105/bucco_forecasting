@@ -4,8 +4,11 @@ Two models, each fitted walk-forward (a target season's model sees only earlier 
 tuned for each target season on the two seasons before it (`GRID`: 18 settings of leaves, rows
 per leaf and trees; the first is the most complex):
 
-* innings: next season's innings for pitchers on an Opening Day 40-man roster (0 if none), with
-  our pipeline's innings (baseline innings x availability) as an input;
+* innings: next season's innings for pitchers on a preseason roster (0 if none), with our
+  pipeline's innings (baseline innings x availability) as an input. The roster is the Opening Day
+  40-man ("mlb", marcel_ml_pitchers) or that plus each organization's minor-league depth
+  ("mlb_org": minor leaguers Marcel projects too, most of whom throw no MLB innings; tried, not
+  adopted, see docs/R&D/ml_playing_time.md);
 * rate: next season's park-neutral FIP-based runs above average per 9 innings, for every pitcher
   Marcel projects, fitted on pitchers who threw 30+ innings (weighted by innings), with Marcel's
   rate as an input.
@@ -15,12 +18,12 @@ season (batters faced, innings, starts, games, start share, the four FIP run par
 batters faced, against each league), the share of batters faced in the minors and the average
 minor-league level, ground-out share against the league, injured-list days, stints and 60-day
 stints; plus age, the season, Marcel's start share, rate and WAR per 180 innings, and Opening Day
-injured-list status this season and last. Training rows are weighted toward recent seasons
+status this season and last (on the 40-man, on the injured list). Training rows are weighted toward recent seasons
 (x DECAY per year back). Unknown values (injured list before 2009, minor leagues before 2006) are
 left missing; the trees handle them.
 
-Fitting takes about an hour, so `fit_and_save` (`bucco fit-ml-pitchers`) saves every season's
-predictions to PREDICTIONS; `apply` swaps them into Marcel's pitcher projections. Innings are
+Fitting takes about an hour (longer with organization depth), so `fit_and_save` (`bucco
+fit-ml-pitchers [--roster mlb_org]`) saves every season's predictions to PREDICTIONS[roster]; `apply` swaps them into Marcel's pitcher projections. Innings are
 learned from 2012 (the first season with two earlier roster seasons to tune on); earlier seasons
 keep the pipeline's. See docs/R&D/ml_playing_time.md.
 """
@@ -39,7 +42,8 @@ from bucco.config import CACHE_DIR, DUCKDB_PATH
 
 log = logging.getLogger(__name__)
 
-PREDICTIONS = CACHE_DIR / "derived" / "ml_pitchers.parquet"
+PREDICTIONS = {"mlb": CACHE_DIR / "derived" / "ml_pitchers.parquet",
+               "mlb_org": CACHE_DIR / "derived" / "ml_pitchers_org.parquet"}
 GRID = [{"max_leaf_nodes": a, "min_samples_leaf": b, "max_iter": c}
         for a, b, c in itertools.product((15, 7, 4), (40, 100, 200), (300, 150))]
 DECAY = 0.9
@@ -52,7 +56,7 @@ LEVEL = {"AAA": 1, "AA": 2, "A+": 3, "A": 4}
 PARTS = ["k_runs", "bb_runs", "hr_runs", "other_runs"]
 LAGS = ["bf", "ip", "gs", "games", "gs_share", "milb_share", "milb_level", "k700", "bb700",
         "hr700", "other700", "go", "il_days", "il_stints", "on_60_day"]
-OPENING_DAY = ["od_il_60", "od_il_short", "prev_il_60", "prev_il_short", "prev_on_40"]
+OPENING_DAY = ["on_40", "od_il_60", "od_il_short", "prev_il_60", "prev_il_short", "prev_on_40"]
 SHORTENED = {2020}
 
 
@@ -112,8 +116,9 @@ def lagged(rows: pd.DataFrame, hist: pd.DataFrame) -> pd.DataFrame:
 
 
 def opening_day(rows: pd.DataFrame, status: pd.DataFrame) -> pd.DataFrame:
-    """Opening Day injured-list flags this season and last (status: season, mlbam_id,
-    il_group); last season's are unknown for the first roster season."""
+    """Opening Day flags this season and last (status: season, mlbam_id, il_group, one row per
+    40-man player): on the 40-man, on the 60-day or a short injured list. Last season's are
+    unknown for the first roster season. on_40 is constant (so unused) for 40-man rows."""
     st = status.rename(columns={"il_group": "od"})
     prev = st.assign(season=st["season"] + 1).rename(columns={"od": "od_prev"})
     rows = rows.merge(st, on=["season", "mlbam_id"], how="left") \
@@ -121,6 +126,7 @@ def opening_day(rows: pd.DataFrame, status: pd.DataFrame) -> pd.DataFrame:
     for g in ("il_60", "il_short"):
         rows[f"od_{g}"] = (rows["od"] == g).astype(float)
         rows[f"prev_{g}"] = (rows["od_prev"] == g).astype(float)
+    rows["on_40"] = rows["od"].notna().astype(float)
     rows["prev_on_40"] = rows["od_prev"].notna().astype(float)
     first = status["season"].min()
     rows.loc[rows["season"] <= first, ["prev_il_60", "prev_il_short", "prev_on_40"]] = np.nan
@@ -180,7 +186,7 @@ def walk_forward(train_rows: pd.DataFrame, predict_rows: pd.DataFrame, feats: li
 
 def frames(pitchers: pd.DataFrame, roster: pd.DataFrame,
            path=DUCKDB_PATH) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """(rate rows: every Marcel pitcher projection; innings rows: those on a preseason roster),
+    """(rate rows: every Marcel pitcher projection; innings rows: those on `roster`),
     with inputs, target y (NaN for the upcoming season) and weight vol."""
     from bucco.models.player_inputs import on_rosters
 
@@ -214,9 +220,13 @@ INNINGS_FEATURES = ["age", "season", "start_share", "marcel_fip9", "marcel_war18
                     *OPENING_DAY] + [f"y{k}_{c}" for k in (1, 2, 3) for c in LAGS]
 
 
-def fit_and_save(path=DUCKDB_PATH, out=PREDICTIONS) -> pd.DataFrame:
+def fit_and_save(path=DUCKDB_PATH, out=None, roster_source: str = "mlb") -> pd.DataFrame:
     """Fit both models walk-forward for every season from FIRST_PREDICTED to the upcoming one
-    and save season, mlbam_id, ml_ip (rostered pitchers) and ml_runs9 to `out`."""
+    and save season, mlbam_id, ml_ip (pitchers on `roster_source`'s rosters) and ml_runs9 to
+    `out` (default PREDICTIONS[roster_source])."""
+    if roster_source not in PREDICTIONS:
+        raise ValueError(f"roster_source must be one of {sorted(PREDICTIONS)}")
+    out = out or PREDICTIONS[roster_source]
     from bucco.models.player_inputs import (
         marcel_projections,
         marcel_rosters,
@@ -224,7 +234,7 @@ def fit_and_save(path=DUCKDB_PATH, out=PREDICTIONS) -> pd.DataFrame:
     )
 
     _, pitchers = marcel_projections(*staff_projection_settings(), path=path)
-    rate, inn = frames(pitchers, marcel_rosters("mlb", path), path)
+    rate, inn = frames(pitchers, marcel_rosters(roster_source, path), path)
     upcoming = int(pitchers["season"].max())
     targets = range(FIRST_PREDICTED, upcoming + 1)
     targets = [t for t in targets if t not in SHORTENED]
@@ -242,7 +252,8 @@ def fit_and_save(path=DUCKDB_PATH, out=PREDICTIONS) -> pd.DataFrame:
     return preds
 
 
-def load_predictions(path=PREDICTIONS) -> pd.DataFrame:
+def load_predictions(roster_source: str = "mlb", path=None) -> pd.DataFrame:
+    path = path or PREDICTIONS[roster_source]
     if not path.exists():
         raise RuntimeError(f"{path} not found. Run `bucco fit-ml-pitchers` first.")
     return pd.read_parquet(path)

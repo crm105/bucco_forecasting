@@ -387,7 +387,7 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
                      milb_rookies: bool = False, relative_fatigue: bool = False,
                      injury_sims: int = 0, milb_pitching: float = 0.0,
                      pitcher_components: bool = False, ml_pitchers: bool = False,
-                     path=DUCKDB_PATH) -> PlayerData:
+                     pitcher_roster: str | None = None, path=DUCKDB_PATH) -> PlayerData:
     """Our own Marcel projections on each team's preseason roster.
 
     Rosters are `roster_source`'s preseason rosters (`marcel_rosters`: Steamer's team
@@ -404,7 +404,9 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
     the draws fitted for each season on earlier ones. `pitcher_components`: pitchers' runs
     regressed by part (marcel.COMPONENT_REG_BF) instead of as one number. `ml_pitchers`:
     pitchers' innings and rates from the learned models' saved predictions
-    (bucco.models.ml_pitchers; run `bucco fit-ml-pitchers` first)."""
+    (bucco.models.ml_pitchers; run `bucco fit-ml-pitchers` first). `pitcher_roster`: pitchers
+    join this source's rosters instead of `roster_source`'s (projections unchanged), and with
+    `ml_pitchers` take that roster's learned innings."""
     components = (tuple(marcel.COMPONENT_REG_BF[p] for p in marcel.COMPONENTS)
                   if pitcher_components else None)
     batters, pitchers = marcel_projections(aging, prior, park, fielding, innings,
@@ -417,10 +419,12 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
         matchups = con.sql("select season, team_id, opponent_id, games "
                            "from marts.team_matchups").df()
     batters = on_rosters(batters, roster, "batter")
-    pitchers = on_rosters(pitchers, roster, "pitcher")
+    pitcher_roster = pitcher_roster or roster_source
+    p_roster = roster if pitcher_roster == roster_source else marcel_rosters(pitcher_roster, path)
+    pitchers = on_rosters(pitchers, p_roster, "pitcher")
     if ml_pitchers:
         from bucco.models import ml_pitchers as mlp
-        pitchers = mlp.apply(pitchers, mlp.load_predictions())
+        pitchers = mlp.apply(pitchers, mlp.load_predictions(pitcher_roster))
     if park_fit:
         batters = with_park_fit(batters, path=path)
     return PlayerData(batters, pitchers, positions, source="Marcel", playing_time=playing_time,

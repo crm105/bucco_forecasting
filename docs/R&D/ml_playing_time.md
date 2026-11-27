@@ -112,3 +112,26 @@ with learned pitcher innings and rates through the staff optimizer. Registered b
 (about an hour) and saves predictions for 2012 to the upcoming season; innings before 2012 stay the
 pipeline's. 2027 Pirates 82.4 wins (12th): their pitching WAR rises (17.9 to 19.3) but the league's
 rises more (14.0 to 16.2), as the learned innings give more time to projected pitchers everywhere.
+
+## Minor-league pitchers (organization depth): not adopted
+
+Players off the Opening Day 40-man are never projected, and the pitchers among them were worth
+1.55 WAR of team pitching error ("perfect both"). The innings model was refitted on the 40-man plus
+each organization's minor-league depth (`bucco fit-ml-pitchers --roster mlb_org`, 27 minutes;
+an "on the 40-man" flag added, which is constant, so unused, for the 40-man model) and pitchers
+joined those wider rosters (`load_marcel_data(pitcher_roster="mlb_org")`); hitters and every
+Marcel projection unchanged. Minor leaguers got 2.2 innings each on average, about 140 per team
+season taken from replacement level.
+
+`bucco evaluate`, 2012–2026, population now including organization depth:
+
+| | Innings RMSE | bias | WAR per 180 | Team pitching WAR | unprojected | Record RMSE |
+| --- | --- | --- | --- | --- | --- | --- |
+| `marcel_ml_pitchers` | **21.50** | −2.4 | **1.61** | **4.64** | 1.55 | **9.50** |
+| with organization depth | 21.99 | −0.6 | 1.64 | 4.67 | **0.98** | 9.53 |
+| Steamer, optimized | 21.75 | 1.4 | 1.60 | 4.77 | 0.57 | 9.58 |
+
+(2009–2026: 9.39 against 9.41.) The unprojected share fell from 1.55 to 0.98, but the minor
+leaguers' rates are poor enough that the rate error rose by more (perfect playing time 4.46 to
+4.56), and innings error rose: spreading 2 innings over every minor leaguer misses on the few who
+pitch a lot. Worse on player accuracy, so kept only as an option.

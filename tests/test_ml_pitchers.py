@@ -36,3 +36,19 @@ def test_walk_forward_never_sees_the_target_season():
     df = pd.concat(rows, ignore_index=True)
     out = mlp.walk_forward(df, df, ["x"], [2019], centered=False)
     assert out["pred"].abs().mean() < 10         # learned 2 * x, not the 2019 shift
+
+
+def test_opening_day_flags_minor_leaguers_off_the_40_man():
+    status = pd.DataFrame({"season": [2023, 2024, 2024], "mlbam_id": [1, 1, 2],
+                           "il_group": ["active", "il_60", "active"]})
+    rows = pd.DataFrame({"season": [2024, 2024, 2024], "mlbam_id": [1, 2, 3]})
+    out = mlp.opening_day(rows, status).set_index("mlbam_id")
+    assert out["on_40"].tolist() == [1.0, 1.0, 0.0]          # 3: organization depth only
+    assert out.loc[1, "od_il_60"] == 1.0 and out.loc[1, "prev_on_40"] == 1.0
+    assert out.loc[3, ["od_il_60", "od_il_short", "prev_on_40"]].tolist() == [0.0, 0.0, 0.0]
+
+
+def test_predictions_are_kept_per_roster_source():
+    assert mlp.PREDICTIONS["mlb"] != mlp.PREDICTIONS["mlb_org"]
+    with pytest.raises(ValueError):
+        mlp.fit_and_save(roster_source="steamer")

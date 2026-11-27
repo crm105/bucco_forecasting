@@ -160,7 +160,7 @@ def _evaluate(args: argparse.Namespace) -> None:
     actual = projection_report.load_actual()
     results = backtest.load_results()
     from bucco.models.player_inputs import marcel_rosters
-    pop = projection_report.population(actual, marcel_rosters("mlb"))
+    pop = projection_report.population(actual, marcel_rosters("mlb_org"))
     players, forecasts, splits = {}, {}, {}
     for name in names:
         model = REGISTRY[name]()
@@ -181,7 +181,8 @@ def _evaluate(args: argparse.Namespace) -> None:
         table = pd.DataFrame({n: t.loc[label] for n, t in players.items()}).T
         table = table.dropna(axis=1, how="all").astype({"players": int})
         print(f"1. Player projection error, {label.lower()} (RMSE. Playing time and production: "
-              "everyone on an Opening Day 40-man or who played, 0 if not projected; rates: "
+              "everyone on an Opening Day 40-man or in its organization's minor-league depth, or who "
+              "played, 0 if not projected; rates: "
               "projected players who played enough, weighted by playing time):")
         print(table.to_string(**fmt), "\n")
     print("2. Forecast error (team WAR RMSE, centered by season; record from the wins backtest):")
@@ -195,9 +196,9 @@ def _fit_ml_pitchers(args: argparse.Namespace) -> None:
     """Fit the learned pitcher innings and rate models walk-forward and save their predictions."""
     from bucco.models import ml_pitchers
 
-    preds = ml_pitchers.fit_and_save()
+    preds = ml_pitchers.fit_and_save(roster_source=args.roster)
     print(f"Saved {len(preds)} pitcher predictions, {preds['season'].min()}-"
-          f"{preds['season'].max()}, to {ml_pitchers.PREDICTIONS}")
+          f"{preds['season'].max()}, to {ml_pitchers.PREDICTIONS[args.roster]}")
 
 
 def _forecast(args: argparse.Namespace) -> None:
@@ -387,6 +388,10 @@ def main(argv: list[str] | None = None) -> None:
     fml = commands.add_parser("fit-ml-pitchers",
                               help="fit the learned pitcher innings and rate models (about an "
                                    "hour) and save their predictions for marcel_ml_pitchers")
+    fml.add_argument("--roster", choices=["mlb", "mlb_org"], default="mlb",
+                     help="rosters the innings model learns on: Opening Day 40-man (mlb, for "
+                          "marcel_ml_pitchers) or plus minor-league depth (mlb_org, an "
+                          "experiment: load_marcel_data(pitcher_roster='mlb_org'))")
     fml.set_defaults(func=_fit_ml_pitchers)
 
     args = parser.parse_args(argv)

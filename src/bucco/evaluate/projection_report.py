@@ -85,7 +85,9 @@ def _wrmse(e: pd.Series, w: pd.Series) -> float:
 def population(actual: pd.DataFrame, rosters: pd.DataFrame | None) -> dict[str, pd.DataFrame]:
     """The players every model is scored on for playing time and production, per part: everyone
     on an Opening Day 40-man roster (rosters: season, player_type, mlbam_id) plus everyone who
-    played. The same for every model, whatever its source lists."""
+    played (`bucco evaluate` passes marcel_rosters "mlb_org", so organizations' minor leaguers
+    count too: a model that gives them innings they never throw pays for it). The same for every
+    model, whatever its source lists."""
     out = {}
     for part in PARTS:
         played = actual.loc[(actual["part"] == part) & (actual["playing_time"] > 0),

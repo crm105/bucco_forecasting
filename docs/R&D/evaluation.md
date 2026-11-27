@@ -16,9 +16,14 @@ judged on player-level accuracy first; the team layers are secondary checks.
 - *Production*: the WAR the model gave each player against his actual WAR (season mean removed).
 
 Playing time and production are scored on one population for every model: everyone on an Opening
-Day 40-man roster plus everyone who played, with 0 for any player a model did not project. Without
-it, a source that lists whole organizations (Steamer: 40,000 hitter-seasons, most of whom never
-play) is flattered by thousands of easy zeros.
+Day 40-man roster or in an organization's minor-league depth (marts.organization_depth), plus
+everyone who played, with 0 for any player a model did not project. Without it, a source that
+lists whole organizations (Steamer: 40,000 hitter-seasons, most of whom never play) is flattered
+by thousands of easy zeros; with the minor leaguers in it, a model that gives them time they never
+get pays for it. (The population included only the 40-man until the organization-depth pitcher
+test; adding the minor leaguers adds many near-zero errors, so playing-time RMSEs fell, for
+example our hitters' PA from 160 to 87 and Steamer's from 89 to 97 once its spurious minor-league
+time counted.)
 
 **2. Forecast error**: team WAR against what each team produced (batting, pitching, total; season
 mean removed) and team record (the wins backtest). Team WAR leaves out game-to-game luck, run
