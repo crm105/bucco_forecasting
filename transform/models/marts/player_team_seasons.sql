@@ -5,6 +5,11 @@
   share of games in the field (batters, DH included) or innings pitched (pitchers) with each; one
   with no fielding rows goes to his last team. The actual side of the projection evaluation
   (bucco.evaluate.projection_report) and of team_war_seasons.
+
+  From 2016 a batter's WAR includes his measured fielding: Statcast fielding run value
+  (stg_savant__fielding, framing included) over the season's runs per win, split like the rest.
+  Before 2016 there is no measured fielding (fielding_runs is null) and WAR is offense plus
+  positional adjustment only.
 #}
 
 with fielding as (
@@ -22,13 +27,18 @@ with fielding as (
 
 players as (
 
-    select season, mlbam_id, last_team_id, 'batting' as part, pa as playing_time,
-           war_approx_neutral as war, off_runs_neutral as runs
-    from {{ ref('player_batting_seasons') }}
-    where not is_pitcher
+    select b.season, b.mlbam_id, b.last_team_id, 'batting' as part, b.pa as playing_time,
+           b.war_approx_neutral + coalesce(f.fielding_runs / lg.runs_per_win, 0)  as war,
+           b.off_runs_neutral as runs, f.fielding_runs
+    from {{ ref('player_batting_seasons') }} as b
+    inner join {{ ref('league_seasons') }} as lg on lg.season = b.season
+    left join {{ ref('stg_savant__fielding') }} as f
+        on f.season = b.season and f.mlbam_id = b.mlbam_id
+    where not b.is_pitcher
     union all
     select season, mlbam_id, last_team_id, 'pitching' as part, outs / 3.0 as playing_time,
-           war_approx_neutral as war, pitching_runs_neutral as runs
+           war_approx_neutral as war, pitching_runs_neutral as runs,
+           cast(null as double) as fielding_runs
     from {{ ref('player_pitching_seasons') }}
 
 ),
@@ -44,7 +54,8 @@ shared as (
             partition by players.season, players.mlbam_id, players.part), 0), 1.0) as share,
         players.playing_time,
         players.war,
-        players.runs
+        players.runs,
+        players.fielding_runs
     from players
     left join fielding
         on fielding.season = players.season
@@ -62,6 +73,7 @@ select
     share,
     playing_time * share                                                       as playing_time,
     war * share                                                                as war,
-    runs * share                                                               as runs
+    runs * share                                                               as runs,
+    fielding_runs * share                                                      as fielding_runs
 from shared
 where team_id is not null

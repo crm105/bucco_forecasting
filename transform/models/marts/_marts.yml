@@ -301,7 +301,8 @@ models:
     description: >
       What each player actually did for each team in a season, as batter and as pitcher: PA or
       innings, park-neutral WAR and the runs behind it, split between teams by games in the field
-      or innings pitched.
+      or innings pitched. From 2016 batters' WAR includes measured fielding (Statcast fielding
+      run value, framing included).
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [season, mlbam_id, team_id, part]
@@ -310,6 +311,10 @@ models:
         data_tests:
           - accepted_values:
               values: ['batting', 'pitching']
+      - name: fielding_runs
+        description: >
+          Statcast fielding run value behind the batter's WAR, from 2016 (null before, and for
+          pitching rows).
 
   - name: team_war_seasons
     description: >
