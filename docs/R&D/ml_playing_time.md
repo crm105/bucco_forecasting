@@ -135,3 +135,75 @@ season taken from replacement level.
 leaguers' rates are poor enough that the rate error rose by more (perfect playing time 4.46 to
 4.56), and innings error rose: spreading 2 innings over every minor leaguer misses on the few who
 pitch a lot. Worse on player accuracy, so kept only as an option.
+
+## Hitter PA as given, and dropping the optimizers (2026-11-27)
+
+Every playing-time combination on top of `marcel_ml_pitchers`, scored by `bucco evaluate`
+(2012–2026, population including organizations' minor leaguers; record with the wins line fitted
+from 2012):
+
+| Hitter PA | Pitcher innings | Hitter PA RMSE | Innings RMSE | Team WAR total | Record RMSE |
+| --- | --- | --- | --- | --- | --- |
+| Lineup optimizer | Staff optimizer on learned innings | 86.6 | 21.50 | 7.82 | 9.47 |
+| **Learned, as given** | Staff optimizer on learned innings | **80.3** | 21.50 | 7.75 | **9.44** |
+| Lineup optimizer capped at 1.0 × learned | Staff optimizer | 82.5 | 21.50 | 7.83 | 9.46 |
+| Caps at 1.15 / 1.3 / 1.5 × learned | Staff optimizer | 83.9–86.0 | 21.50 | 7.82 | 9.47 |
+| Lineup optimizer | Learned, as given | 86.6 | **21.14** | 7.81 | 9.54 |
+| Learned, as given | Learned, as given | **80.3** | **21.14** | 7.76 | 9.51 |
+| Learned, as given | Half each | **80.3** | 21.16 | **7.74** | 9.46 |
+
+The lineup optimizer only anchors its fatigue curve on a player's projected PA (the hard limit is
+700), so it gives a good player far more PA than a playing-time model expects; capping him
+(`pa_cap`) helps, using the learned PA as given helps most. Dropping the optimizers also drops
+their rate adjustments (fatigue, position switches, rotation or bullpen role), which slightly hurt
+player rates. Team batting WAR barely moves: its error is mostly rate error (about 5.1 of 5.5), and
+playing-time error (2.9 to 3.0) adds in quadrature. Learned hitter rates on top of the learned PA
+made team batting worse (5.54 against 5.47), so hitter rates stay Marcel's. None of the record
+differences is significant (largest t 1.5).
+
+Registered: **`marcel_ml_hitter_pa`** (hitter PA as given, pitchers through the staff optimizer),
+from 2012: hitter PA RMSE 80.2, team WAR 7.74, record 9.44 (`marcel_ml_pitchers` 9.50 on the same
+seasons). The optimizers are to be rebuilt around the learned playing time rather than deciding it.
+
+## Platoon features for hitters: not adopted (2026-11-27)
+
+Batters' splits against left- and right-handed pitchers (`bucco extract mlb-player-splits`,
+`vs_lhp`/`vs_rhp`, 2000–2026) gave handedness, the share of PA against left-handers in each of the
+last three seasons, and a regressed split (three seasons pooled, 1,000 PA against left-handers of
+ballast). Holdout RMSE, 2012–2026:
+
+| | PA, all | PA, platoon pattern last season | Off runs per 600 |
+| --- | --- | --- | --- |
+| Current inputs | 146.24 | 136.27 | 16.21 |
+| + handedness | 146.25 | 136.24 | 16.21 |
+| + handedness and platoon | 145.76 | 137.28 | 16.23 |
+
+The small PA gain came from hitters without a platoon pattern; for those with one it got worse.
+Platoon roles are already visible in lagged PA and games.
+
+## Roster context and a two-part model (Track 1, 2026-11-27)
+
+Holdout RMSE of the playing-time models (`bucco.models.ml.core.score`; 40-man players,
+2012–2026), each against the current inputs:
+
+| | Hitter PA | better seasons (t) | Pitcher innings | better seasons (t) |
+| --- | --- | --- | --- | --- |
+| Pipeline | 164.6 | | 38.79 | |
+| Current inputs | 145.98 | | 37.44 | |
+| **+ roster context** | **144.60** | 11 of 14 (−3.6) | **37.18** | 12 of 14 (−2.2) |
+| Two-part | 145.63 | 10 of 14 (−1.5) | 37.40 | 8 of 14 (−0.3) |
+| Two-part + roster context | 144.15 | 10 of 14 (−4.3) | 37.11 | 11 of 14 (−2.3) |
+
+Roster context (`roster_context` in `ml.hitters` and `ml.pitchers`): a hitter's rank by Marcel's
+WAR per 600 among his team's hitters and at his main position last season, how many share it, the
+gap to the best of them, his share of the team's and the position's pipeline PA; a pitcher's rank
+on the staff and in the rotation or bullpen, the number of starters and relievers, a starter's gap
+to the fifth-best starter, his share of the team's and the rotation's pipeline innings. It helps
+regulars and starters most (hitters with 500+ PA: 170 to 165; starters: 47.8 to 47.4). Adopted.
+
+The two-part model (chance he plays at all, from a boosted classifier tuned on log loss, times PA
+or innings if he plays, tuned on RMSE) adds 0.4 PA and 0.07 innings beyond roster context (t −1.9
+and −1.1) at twice the fitting time: only 8% of rostered hitters and 13% of pitchers get no time.
+Not adopted. Grouped by what players actually got, regulars still look under-projected and fringe
+players over-projected (478 against 605 PA; 169 against 71), but that is what any expected value
+shows when sorted by outcome, not a bias features can remove.
