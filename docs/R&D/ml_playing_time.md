@@ -106,9 +106,9 @@ tie Marcel.
 
 ## Status
 
-Adopted for pitchers as `marcel_ml_pitchers` (`bucco.models.ml_pitchers`): `marcel_staff_optimized`
+Adopted for pitchers as `marcel_ml_pitchers` (`bucco.models.ml.pitchers`): `marcel_staff_optimized`
 with learned pitcher innings and rates through the staff optimizer. Registered backtest 9.50 on
-2012–2026 (Steamer 9.50, `marcel_staff_optimized` 9.58). `bucco fit-ml-pitchers` fits both models
+2012–2026 (Steamer 9.50, `marcel_staff_optimized` 9.58). `bucco fit-ml --targets pitchers` fits both models
 (about an hour) and saves predictions for 2012 to the upcoming season; innings before 2012 stay the
 pipeline's. 2027 Pirates 82.4 wins (12th): their pitching WAR rises (17.9 to 19.3) but the league's
 rises more (14.0 to 16.2), as the learned innings give more time to projected pitchers everywhere.
@@ -117,7 +117,7 @@ rises more (14.0 to 16.2), as the learned innings give more time to projected pi
 
 Players off the Opening Day 40-man are never projected, and the pitchers among them were worth
 1.55 WAR of team pitching error ("perfect both"). The innings model was refitted on the 40-man plus
-each organization's minor-league depth (`bucco fit-ml-pitchers --roster mlb_org`, 27 minutes;
+each organization's minor-league depth (`bucco fit-ml --targets pitchers --roster mlb_org`, 27 minutes;
 an "on the 40-man" flag added, which is constant, so unused, for the 40-man model) and pitchers
 joined those wider rosters (`load_marcel_data(pitcher_roster="mlb_org")`); hitters and every
 Marcel projection unchanged. Minor leaguers got 2.2 innings each on average, about 140 per team

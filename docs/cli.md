@@ -189,16 +189,26 @@ numbers lean toward our own model; comparisons between versions of one model are
 prints only the team-WAR part of table 2 and saves it in `evaluate.team_war_results`. Both take a
 few minutes per model (the lineup and staff optimizers run for every season).
 
-## Fit the learned pitcher models
+## Fit the learned player models
 
 ```
-bucco fit-ml-pitchers
+bucco fit-ml [--targets pitchers hitters] [--roster mlb_org] [--no-save]
 ```
 
-Fits the learned pitcher innings and rate models walk-forward (each target season tuned on the
-two before it; about an hour) and saves their predictions, 2012 to the upcoming season, to
-`data/cache/derived/ml_pitchers.parquet`. `marcel_ml_pitchers` reads that file; rerun after new
-data or projections, before `backtest` or `forecast` (see [R&D/ml_playing_time.md](R&D/ml_playing_time.md)).
+Fits the learned player models (`bucco.models.ml`) walk-forward, each target season tuned on the
+two before it, prints each model's holdout RMSE against the value it improves on (Marcel's rate
+or our pipeline's playing time), overall and by season, and saves the predictions, 2012 to the
+upcoming season:
+
+| Target | Models | Saved to | Read by |
+| --- | --- | --- | --- |
+| `pitchers` | innings, FIP-based rate (about 30 minutes) | `data/cache/derived/ml_pitchers.parquet` | `marcel_ml_pitchers`, `marcel_ml_hitter_pa` |
+| `hitters` | plate appearances (a few minutes) | `data/cache/derived/ml_hitters.parquet` | `marcel_ml_hitter_pa` |
+
+Rerun after new data or projections, before `backtest` or `forecast`. `--no-save` scores a change
+without replacing the saved predictions. `--roster mlb_org` fits the pitcher innings model on
+organizations' minor-league depth too (an experiment, saved separately). See
+[R&D/ml_playing_time.md](R&D/ml_playing_time.md).
 
 ## Help and troubleshooting
 

@@ -24,7 +24,7 @@
     bucco leaderboard [--pirates] [--first-season 2001] [--include-shortened]
     bucco team-war [--models marcel_staff_optimized steamer_optimized] [--first-season 2012]
     bucco evaluate [--models marcel_staff_optimized steamer_optimized] [--first-season 2012]
-    bucco fit-ml-pitchers
+    bucco fit-ml [--targets pitchers hitters] [--roster mlb_org] [--no-save]
 """
 
 from __future__ import annotations
@@ -192,13 +192,27 @@ def _evaluate(args: argparse.Namespace) -> None:
         print(table.to_string(**fmt), "\n")
 
 
-def _fit_ml_pitchers(args: argparse.Namespace) -> None:
-    """Fit the learned pitcher innings and rate models walk-forward and save their predictions."""
-    from bucco.models import ml_pitchers
+def _fit_ml(args: argparse.Namespace) -> None:
+    """Fit the learned player models walk-forward, print their holdout scores and save their
+    predictions."""
+    from bucco.models.ml import hitters, pitchers
 
-    preds = ml_pitchers.fit_and_save(roster_source=args.roster)
-    print(f"Saved {len(preds)} pitcher predictions, {preds['season'].min()}-"
-          f"{preds['season'].max()}, to {ml_pitchers.PREDICTIONS[args.roster]}")
+    fmt = {"float_format": lambda x: f"{x:.3f}"}
+    if "pitchers" in args.targets:
+        preds = pitchers.fit_and_save(roster_source=args.roster, save=not args.no_save)
+        for name, table in preds.attrs["scores"].items():
+            print(f"Pitcher {name} (holdout RMSE; baseline: Marcel or our pipeline):")
+            print(table.to_string(**fmt), "\n")
+        if not args.no_save:
+            print(f"Saved {len(preds)} pitcher predictions, {preds['season'].min()}-"
+                  f"{preds['season'].max()}, to {pitchers.PREDICTIONS[args.roster]}")
+    if "hitters" in args.targets:
+        preds = hitters.fit_and_save(out=None if args.no_save else hitters.PREDICTIONS)
+        print("Hitter PA (holdout RMSE; baseline: our pipeline):")
+        print(preds.attrs["scores"].to_string(**fmt), "\n")
+        if not args.no_save:
+            print(f"Saved {len(preds)} hitter predictions, {preds['season'].min()}-"
+                  f"{preds['season'].max()}, to {hitters.PREDICTIONS}")
 
 
 def _forecast(args: argparse.Namespace) -> None:
@@ -385,14 +399,19 @@ def main(argv: list[str] | None = None) -> None:
                     help="first season scored (default 2012)")
     ev.set_defaults(func=_evaluate)
 
-    fml = commands.add_parser("fit-ml-pitchers",
-                              help="fit the learned pitcher innings and rate models (about an "
-                                   "hour) and save their predictions for marcel_ml_pitchers")
+    fml = commands.add_parser("fit-ml",
+                              help="fit the learned player models (pitcher innings and rates, "
+                                   "hitter PA), print their holdout scores and save their "
+                                   "predictions for marcel_ml_pitchers and marcel_ml_hitter_pa")
+    fml.add_argument("--targets", nargs="*", choices=["pitchers", "hitters"],
+                     default=["pitchers", "hitters"], help="default: both")
+    fml.add_argument("--no-save", action="store_true",
+                     help="score only; keep the saved predictions")
     fml.add_argument("--roster", choices=["mlb", "mlb_org"], default="mlb",
                      help="rosters the innings model learns on: Opening Day 40-man (mlb, for "
                           "marcel_ml_pitchers) or plus minor-league depth (mlb_org, an "
                           "experiment: load_marcel_data(pitcher_roster='mlb_org'))")
-    fml.set_defaults(func=_fit_ml_pitchers)
+    fml.set_defaults(func=_fit_ml)
 
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
