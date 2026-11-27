@@ -357,6 +357,29 @@ def apply_external_def(batters: pd.DataFrame, def_rates: pd.DataFrame,
     return out
 
 
+def apply_fielding_rates(batters: pd.DataFrame, rates: pd.DataFrame,
+                         league: pd.DataFrame) -> pd.DataFrame:
+    """Replace each batter's fielding runs (fld_runs: none, or borrowed by apply_external_def)
+    with fld_rate x PA where `rates` (season, mlbam_id, fld_rate: fielding runs per PA) has one,
+    moving Def and WAR by the difference at the runs per win of the season before. Batters with
+    no rate, or no MLB positional history to add fielding to, keep what they had."""
+    out = batters.copy()
+    rate = out[["season", "mlbam_id"]].merge(rates[["season", "mlbam_id", "fld_rate"]],
+                                             on=["season", "mlbam_id"], how="left")["fld_rate"]
+    rate = pd.Series(rate.to_numpy(), index=out.index)
+    if "has_position" in out:
+        rate = rate.where(out["has_position"].astype(bool))
+    use = rate.notna()
+    old = out["fld_runs"].fillna(0.0).astype(float)
+    new = rate * out["pa"].astype(float)
+    rpw = _prior_league(out, league)["runs_per_win"].to_numpy()
+    change = (new - old).where(use, 0.0)
+    out["fld_runs"] = out["fld_runs"].where(~use, new)
+    out["def_runs"] = out["def_runs"] + change
+    out["war"] = out["war"] + change / rpw
+    return out
+
+
 # ---- park fit: how a batter's profile suits his team's park ------------------------------
 # Events whose rates a park changes, with the league_seasons column of their wOBA weight (runs
 # above an out, times the wOBA scale) and of their league rate per PA.

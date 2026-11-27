@@ -65,13 +65,35 @@ def external_def_rates(sources: tuple[str, ...] = FIELDING_SOURCES,
     return rows.groupby(["season", "mlbam_id"], as_index=False)["def_rate"].mean()
 
 
+FIELDING_WEIGHTS = (3.0, 2.0, 1.0)      # last season first; see docs/R&D/fielding.md
+FIELDING_REG_PA = 1000.0                # PA of league-average (0) fielding added in
+
+
+def statcast_fielding_rates(path=DUCKDB_PATH, weights: tuple = FIELDING_WEIGHTS,
+                            reg_pa: float = FIELDING_REG_PA) -> pd.DataFrame:
+    """season (target), mlbam_id, fld_rate: each batter's Statcast fielding run value per PA
+    over the three seasons before (`weights`, last first), with `reg_pa` PA of zero added in. For
+    target seasons with at least one fielding season before (from 2017), batters with any."""
+    with duckdb.connect(str(path), read_only=True) as con:
+        hist = con.sql("select f.season, f.mlbam_id, f.fielding_runs, b.pa "
+                       "from staging.stg_savant__fielding f join marts.player_batting_seasons b "
+                       "using (season, mlbam_id) where not b.is_pitcher and b.pa > 0").df()
+    parts = []
+    for k, w in enumerate(weights, 1):
+        parts.append(hist.assign(season=hist["season"] + k,
+                                 runs=w * hist["fielding_runs"], wpa=w * hist["pa"]))
+    tot = pd.concat(parts).groupby(["season", "mlbam_id"], as_index=False)[["runs", "wpa"]].sum()
+    tot["fld_rate"] = tot["runs"] / (tot["wpa"] + reg_pa)
+    return tot[["season", "mlbam_id", "fld_rate"]]
+
+
 @lru_cache(maxsize=4)
 def marcel_projections(aging: bool = False, prior: str = "league", park: bool = False,
                        fielding: bool = False, innings: str = "marcel",
                        availability: str = "none", milb: float = 0.0,
                        milb_rookies: bool = False, milb_pitching: float = 0.0,
                        components: tuple[float, ...] | None = None,
-                       roster_source: str = "steamer",
+                       roster_source: str = "steamer", statcast_fielding: bool = False,
                        path=DUCKDB_PATH) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Marcel projections (bucco.models.marcel) for every player with MLB history in the three
     seasons before each target season, on any team or none: (batters, pitchers). `aging`
@@ -79,7 +101,9 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
     rates are shrunk toward (marcel.PRIORS; "fitted" depends on how much history a player has).
     `park` projects from park-neutral history (and fits the age curves on it). `fielding`
     replaces batters' positional-only Def with the mean of Steamer's and ZiPS's projected Def
-    per PA (marcel.apply_external_def). `innings`: "marcel" (Marcel's playing-time formula)
+    per PA (marcel.apply_external_def); `statcast_fielding` then replaces the fielding part with
+    our own projection from Statcast fielding run value wherever a batter has some
+    (`statcast_fielding_rates`, targets from 2017). `innings`: "marcel" (Marcel's playing-time formula)
     or "baseline" (bucco.models.innings, fitted on earlier seasons' rostered pitchers), which
     also adds each season's start_penalty for the staff optimizer. `availability`: "none", or
     scale the playing time of players on a preseason roster by their Opening Day 40-man status
@@ -121,6 +145,8 @@ def marcel_projections(aging: bool = False, prior: str = "league", park: bool = 
                                      park=park, milb_weight=milb)
     if fielding:
         batters = marcel.apply_external_def(batters, external_def_rates(path=path), league)
+    if statcast_fielding:
+        batters = marcel.apply_fielding_rates(batters, statcast_fielding_rates(path), league)
     pit_frame = pit_frame.reset_index(drop=True)
     pitchers = marcel.project_pitchers(pit_frame, league, curves=pit_curves, prior=prior,
                                        park=park, milb_weight=milb_pitching,
@@ -388,7 +414,7 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
                      injury_sims: int = 0, milb_pitching: float = 0.0,
                      pitcher_components: bool = False, ml_pitchers: bool = False,
                      pitcher_roster: str | None = None, ml_hitters: bool = False,
-                     path=DUCKDB_PATH) -> PlayerData:
+                     statcast_fielding: bool = False, path=DUCKDB_PATH) -> PlayerData:
     """Our own Marcel projections on each team's preseason roster.
 
     Rosters are `roster_source`'s preseason rosters (`marcel_rosters`: Steamer's team
@@ -414,7 +440,8 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
                   if pitcher_components else None)
     batters, pitchers = marcel_projections(aging, prior, park, fielding, innings,
                                            availability, milb, milb_rookies, milb_pitching,
-                                           components, roster_source, path=path)
+                                           components, roster_source,
+                                           statcast_fielding=statcast_fielding, path=path)
     roster = marcel_rosters(roster_source, path)
     with duckdb.connect(str(path), read_only=True) as con:
         positions = con.sql("select season, mlbam_id, position, games "
@@ -478,21 +505,24 @@ STAFF_SETTINGS = {"aging": True, "prior": "fitted", "park": True, "fielding": Tr
                   "innings": "baseline", "pitcher_playing_time": "optimized",
                   "availability": "absolute", "milb": mle.MILB_WEIGHT, "milb_rookies": True,
                   "relative_fatigue": True, "milb_pitching": mle.PITCHER_MILB_WEIGHT,
-                  "pitcher_components": True, "roster_source": "mlb"}
+                  "pitcher_components": True, "roster_source": "mlb", "statcast_fielding": True}
 
 
 def staff_projection_settings() -> tuple:
-    """`marcel_projections` arguments of marcel_staff_optimized, in order."""
+    """`marcel_projections` arguments of STAFF_SETTINGS (the learned models' Marcel inputs:
+    marcel_staff_optimized's, with our own Statcast fielding), in order."""
     s = STAFF_SETTINGS
     return (s["aging"], s["prior"], s["park"], s["fielding"], s["innings"], s["availability"],
             s["milb"], s["milb_rookies"], s["milb_pitching"],
-            tuple(marcel.COMPONENT_REG_BF[p] for p in marcel.COMPONENTS), s["roster_source"])
+            tuple(marcel.COMPONENT_REG_BF[p] for p in marcel.COMPONENTS), s["roster_source"],
+            s["statcast_fielding"])
 
 
 def make_marcel_ml_pitchers_model() -> DepthChartModel:
     """Factory for the registry: `marcel_staff_optimized` with pitchers' innings and rates from
     the learned models (bucco.models.ml.pitchers), through the staff optimizer; hitters as in
-    marcel_staff_optimized."""
+    marcel_staff_optimized but with our own fielding projection from Statcast fielding run value
+    where a hitter has some (from 2017; STAFF_SETTINGS)."""
     return DepthChartModel(load_marcel_data("optimized", ml_pitchers=True, **STAFF_SETTINGS),
                            name="marcel_ml_pitchers")
 

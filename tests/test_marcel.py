@@ -1,5 +1,6 @@
 """Marcel projections: weighting, regression, playing time and value, from prior seasons only."""
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -263,3 +264,20 @@ def test_a_batter_without_an_external_def_keeps_his_own():
     rates = pd.DataFrame({"season": [2023], "mlbam_id": [1], "def_rate": [0.05]})  # wrong season
     out = marcel.apply_external_def(_projected(), rates, LEAGUE).iloc[0]
     assert (out["def_runs"], out["fld_runs"], out["war"]) == (-6.0, 0.0, 2.0)
+
+
+def test_statcast_fielding_replaces_the_borrowed_part_and_moves_def_and_war():
+    batters = pd.DataFrame({"season": [2024, 2024, 2024], "mlbam_id": [1, 2, 3],
+                            "pa": [600.0, 300.0, 400.0], "def_runs": [5.0, -2.0, 3.0],
+                            "fld_runs": [3.0, np.nan, 1.0], "war": [3.0, 1.0, 2.0],
+                            "has_position": [True, False, True]})
+    league = pd.DataFrame({"season": [2023], "runs_per_win": [10.0], "runs_per_pa": [0.12],
+                           "era": [4.2], "batting_replacement_runs_per_pa": [0.03],
+                           "pitching_replacement_runs_per_ip": [0.1],
+                           "sp_replacement_runs_per_ip": [0.12],
+                           "rp_replacement_runs_per_ip": [0.08]})
+    rates = pd.DataFrame({"season": [2024, 2024], "mlbam_id": [1, 2], "fld_rate": [0.01, 0.02]})
+    out = marcel.apply_fielding_rates(batters, rates, league).set_index("mlbam_id")
+    assert out.loc[1, ["fld_runs", "def_runs", "war"]].tolist() == pytest.approx([6.0, 8.0, 3.3])
+    assert out.loc[2, "def_runs"] == -2.0 and np.isnan(out.loc[2, "fld_runs"])   # no position
+    assert out.loc[3, ["fld_runs", "def_runs", "war"]].tolist() == [1.0, 3.0, 2.0]  # no rate

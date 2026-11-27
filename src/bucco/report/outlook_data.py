@@ -57,8 +57,9 @@ MARCEL_SETTINGS = {"marcel_park": (True, "fitted", True, False, "marcel", *_NONE
                    "marcel_staff": (True, "fitted", True, True, "baseline", "absolute", 0.5,
                                     True, 0.5, tuple(marcel.COMPONENT_REG_BF[p]
                                                      for p in marcel.COMPONENTS), "mlb")}
-MARCEL_SETTINGS["marcel_ml"] = MARCEL_SETTINGS["marcel_staff"]
-MARCEL_SETTINGS["marcel_ml_pa"] = MARCEL_SETTINGS["marcel_staff"]
+# the learned models' Marcel inputs add our own Statcast fielding (STAFF_SETTINGS)
+MARCEL_SETTINGS["marcel_ml"] = (*MARCEL_SETTINGS["marcel_staff"], True)
+MARCEL_SETTINGS["marcel_ml_pa"] = MARCEL_SETTINGS["marcel_ml"]
 # sources with learned pitcher innings and rates (ml.pitchers)
 ML_PITCHERS = {"marcel_ml", "marcel_ml_pa"}
 ML_HITTERS = {"marcel_ml_pa"}   # learned hitter PA (ml.hitters), each one's cap in the lineup
