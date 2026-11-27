@@ -273,6 +273,25 @@ sources:
           - name: birth_date
             description: Birth date (YYYY-MM-DD).
 
+  - name: savant
+    description: >
+      Baseball Savant (Statcast) season leaderboards, from 2015. Saved by
+      `bucco extract savant`, which checks each season's counts.
+    tables:
+      - name: players
+        description: >
+          Contact quality and plate discipline by season and player, for batters (his own PA) and
+          pitchers (hitters' PA against him), with sprint speed (batters) and average pitch speed
+          by type (pitchers). Every player with at least one PA. Exact repeated rows in Savant's
+          files are dropped.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/savant/players/*.parquet')"
+        columns:
+          - name: mlbam_id
+            description: MLB Advanced Media player id (Savant's player_id).
+          - name: player_type
+            description: "`batter` or `pitcher`."
+
   - name: manual_projections
     description: >
       Preseason win projections and betting win totals collected by hand. Cannot be

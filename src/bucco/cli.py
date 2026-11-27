@@ -7,6 +7,7 @@
     bucco extract mlb-player-stats [--seasons 2024 2025] [--refresh]
     bucco extract mlb-park-splits [--seasons 2024 2025] [--refresh]
     bucco extract mlb-player-splits [--seasons 2024 2025] [--refresh]
+    bucco extract savant [--seasons 2024 2025] [--refresh]
     bucco extract mlb-rosters [--seasons 2024 2025] [--refresh]
     bucco extract mlb-minor-batting [--seasons 2024 2025] [--refresh]
     bucco extract mlb-minor-pitching [--seasons 2024 2025] [--refresh]
@@ -52,6 +53,7 @@ from bucco.extract import (
     mlb_transactions,
     player_projections,
     projections,
+    savant,
 )
 from bucco.models import REGISTRY
 from bucco.report import data as report_data
@@ -93,6 +95,9 @@ def _extract(args: argparse.Namespace) -> None:
             seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
     if args.target in ("mlb-minor-affiliates", "all"):
         mlb_minor_stats.extract_minor_affiliates(
+            seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
+    if args.target in ("savant", "all"):
+        savant.extract_players(
             seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
     if args.target in ("projections", "all"):
         projections.extract_projections()
@@ -292,6 +297,12 @@ def main(argv: list[str] | None = None) -> None:
                                      "park factors (two requests per season)")
     splits.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
     splits.add_argument("--refresh", action="store_true", help="fetch again even if saved")
+    sav = targets.add_parser("savant",
+                             help="Statcast season leaderboards from Baseball Savant: contact "
+                                  "quality, plate discipline, sprint and pitch speed, from 2015 "
+                                  "(three requests per season)")
+    sav.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
+    sav.add_argument("--refresh", action="store_true", help="fetch again even if saved")
     psplits = targets.add_parser("mlb-player-splits",
                                  help="players' home/road and batter-side splits, for park "
                                       "factors by side (three requests per season)")

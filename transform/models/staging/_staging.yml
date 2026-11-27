@@ -351,3 +351,23 @@ models:
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: [season, team_id, site, side]
+
+  - name: stg_savant__players
+    description: >
+      Statcast season leaderboards, typed: contact quality, plate discipline, sprint speed and
+      pitch speed, from 2015. Inputs to the learned rate models.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id, player_type]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: player_type
+        description: "`batter` or `pitcher`."
+        data_tests:
+          - accepted_values:
+              values: [batter, pitcher]

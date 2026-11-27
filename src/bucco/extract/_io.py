@@ -24,9 +24,9 @@ def utc_now_iso() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def get_json(url: str, params: dict | None = None, retries: int = 3,
-             timeout: int = 60, pause: float = 0.5) -> dict:
-    """GET a URL and return the parsed JSON. Retries with a growing wait, then gives up."""
+def _get(url: str, params: dict | None, retries: int, timeout: int,
+         pause: float) -> requests.Response:
+    """GET a URL. Retries with a growing wait, then gives up."""
     last_error: Exception | None = None
     for attempt in range(1, retries + 1):
         try:
@@ -34,12 +34,26 @@ def get_json(url: str, params: dict | None = None, retries: int = 3,
                                     headers={"User-Agent": USER_AGENT})
             response.raise_for_status()
             time.sleep(pause)  # be polite to the API
-            return response.json()
+            return response
         except requests.RequestException as error:
             last_error = error
             log.warning("GET %s failed (attempt %d of %d): %s", url, attempt, retries, error)
             time.sleep(2 ** attempt)
     raise RuntimeError(f"GET {url} failed after {retries} attempts") from last_error
+
+
+def get_json(url: str, params: dict | None = None, retries: int = 3,
+             timeout: int = 60, pause: float = 0.5) -> dict:
+    """GET a URL and return the parsed JSON."""
+    return _get(url, params, retries, timeout, pause).json()
+
+
+def get_text(url: str, params: dict | None = None, retries: int = 3,
+             timeout: int = 60, pause: float = 0.5) -> str:
+    """GET a URL and return the body as text (for CSV downloads)."""
+    response = _get(url, params, retries, timeout, pause)
+    response.encoding = response.encoding or "utf-8"
+    return response.text
 
 
 def sha256_file(path: Path) -> str:
