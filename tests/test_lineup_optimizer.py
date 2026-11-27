@@ -151,6 +151,16 @@ def test_a_better_shortstop_takes_most_of_the_time():
     assert ss.get(9, 0) > ss.get(5, 0)
 
 
+def test_a_capped_star_plays_only_up_to_his_cap_and_his_backup_gets_the_rest():
+    star = _player(9, 30, 12, "SS", ("SS",))
+    free = optimize_team(_team([star]), REP, RPW)
+    capped = optimize_team(_team([star | {"pa_cap": 350.0}]), REP, RPW)
+    assert free.loc[free["mlbam_id"] == 9, "pa"].sum() > 350
+    assert capped.loc[capped["mlbam_id"] == 9, "pa"].sum() == pytest.approx(350.0)
+    ss = capped[capped["position"] == "SS"]
+    assert ss["pa"].sum() == pytest.approx(SLOT_PA["SS"])     # still filled, by others
+
+
 def test_replacement_level_fills_what_nobody_can_play_well():
     alloc = optimize_team(_team(), REP, RPW)
     dh = alloc[alloc["position"] == "DH"]

@@ -22,6 +22,9 @@ Value of player i at position q, in runs, for x PA in total and x_q of them at q
   - at DH: the DH adjustment (-17.5), with no fielding;
   - at catcher: only players who caught.
 
+A batter row may carry `pa_cap`: the most PA he can get (for example a playing-time model's
+expected PA, so that time he is expected to miss goes to his backups); missing means MAX_PA.
+
 WAR = runs / `runs_per_win`. The fatigue curve is cut into SEGMENT_PA steps, so the problem is an
 exact linear program (the curve is concave, so the steps fill in order).
 """
@@ -224,8 +227,8 @@ def player_inputs(batters: pd.DataFrame, positions: pd.DataFrame,
     """Per-player inputs: o_rate (Off per PA), proj_pa, natives, and def700 by position.
 
     batters: one season's projections with mlbam_id, team_id, player_name, plate_appearances,
-    off_runs, def_runs, fld_runs (may be null; used only for players with no MLB games), war.
-    positions: last season's games by position (season, mlbam_id, position, games), as in the
+    off_runs, def_runs, fld_runs (may be null; used only for players with no MLB games), war;
+    optionally pa_cap (see the module notes). positions: last season's games by position (season, mlbam_id, position, games), as in the
     player_position_games mart. switch: the fitted position-switch matrix (default: the saved fit).
     """
     switch = switch or load_switch_matrix()
@@ -247,6 +250,7 @@ def player_inputs(batters: pd.DataFrame, positions: pd.DataFrame,
         rows.append({"mlbam_id": r.mlbam_id, "team_id": r.team_id, "player_name": r.player_name,
                      "proj_pa": pa, "o_rate": r.off_runs / pa, "def700": def700,
                      "anchor": anchor, "natives": natives, "position_source": source,
+                     "pa_cap": float(getattr(r, "pa_cap", np.nan)),
                      **{f"def_{q}": v for q, v in defense_at(def700, anchor, natives, switch, selection_base,
                                                   selection_up).items()}})
     out = pd.DataFrame(rows)
@@ -308,7 +312,14 @@ def optimize_team(players: pd.DataFrame, rep_runs: float, runs_per_win: float,
         row[nx + i * k: nx + (i + 1) * k] = -1.0
         a_eq.append(row)
         b_eq.append(0.0)
-    bounds = [(0, None)] * nx + [(0, step)] * ns + [(0, None)] * nr
+    caps = players["pa_cap"] if "pa_cap" in players else pd.Series(np.nan, players.index)
+    seg_bounds = []
+    for i in range(n):                          # a capped player's steps stop at his cap
+        cap = caps.iloc[i]
+        for j in range(k):
+            top = step if pd.isna(cap) else float(np.clip(cap - j * step, 0.0, step))
+            seg_bounds.append((0, top))
+    bounds = [(0, None)] * nx + seg_bounds + [(0, None)] * nr
     res = linprog(c, A_eq=np.array(a_eq), b_eq=np.array(b_eq), bounds=bounds, method="highs")
     if not res.success:
         raise RuntimeError(f"lineup optimization failed: {res.message}")
