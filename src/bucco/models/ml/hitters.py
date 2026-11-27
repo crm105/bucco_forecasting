@@ -9,8 +9,9 @@ Inputs, from the three seasons before (`history`): MLB and minor-league lines co
 season (plate appearances, games, offense runs per 600 PA, strikeout, walk, home-run and stolen-
 base rates, ISO and BABIP, each against that season's MLB average), the share of PA in the minors
 and the average minor-league level, injured-list days, stints and 60-day stints; plus age, the
-season, Marcel's offense, defense and WAR per 600 PA, and Opening Day status this season and
-last. Unknown values (injured list before 2009, minor leagues before 2006) are left missing.
+season, Marcel's offense, defense and WAR per 600 PA, Opening Day status this season and last,
+and roster context (`roster_context`: where he stands among his team's hitters and at his main
+position last season). Unknown values (injured list before 2009, minor leagues before 2006) are left missing.
 
 The model's PA are used as given (`apply`: offense, defense and WAR scale with the PA; no lineup
 optimizer), in `marcel_ml_hitter_pa`. `fit_and_save` (`bucco fit-ml --targets hitters`) saves
@@ -48,8 +49,10 @@ RATES = ["k", "bbr", "hrr", "sbr", "iso", "babip"]
 LAGS = ["pa", "games", "milb_share", "milb_level", "off600", *RATES, "il_days", "il_stints",
         "on_60_day"]
 VOLUMES = ("pa", "games")
+CONTEXT = ["ctx_rank_team", "ctx_team_n", "ctx_pipe_share", "ctx_team_pipe", "ctx_rank_pos",
+           "ctx_n_pos", "ctx_pos_pipe", "ctx_gap_pos", "ctx_is_c", "ctx_no_pos"]
 PA_FEATURES = ["age", "season", "marcel_off600", "marcel_def600", "marcel_war600", "pipe",
-               *OPENING_DAY] + [f"y{k}_{c}" for k in (1, 2, 3) for c in LAGS]
+               *OPENING_DAY, *CONTEXT] + [f"y{k}_{c}" for k in (1, 2, 3) for c in LAGS]
 
 
 def _rates(x: pd.DataFrame) -> pd.DataFrame:
@@ -98,6 +101,41 @@ def history(path=DUCKDB_PATH) -> pd.DataFrame:
     return with_il(h, il)[["season", "mlbam_id", *LAGS]]
 
 
+def _gap_to_best_other(s: pd.Series) -> pd.Series:
+    """Each value minus the best other value in its group (NaN alone)."""
+    v = s.to_numpy()
+    if len(v) < 2:
+        return pd.Series(np.nan, s.index)
+    top, second = np.sort(v)[::-1][:2]
+    return pd.Series(v - np.where(v == top, second, top), s.index)
+
+
+def roster_context(rows: pd.DataFrame, positions: pd.DataFrame) -> pd.DataFrame:
+    """Where each rostered hitter stands on his team (rows: season, team_id, mlbam_id, pipe,
+    marcel_war600; positions: season, mlbam_id, position, games, last season's games as in
+    marts.player_position_games): his rank by Marcel's WAR per 600 among the team's hitters and
+    among those whose main position last season was his, how many share it, the gap to the best
+    of them, and his share of the team's and the position's pipeline PA."""
+    main = positions.sort_values("games", ascending=False) \
+        .drop_duplicates(["season", "mlbam_id"])[["season", "mlbam_id", "position"]]
+    rows = rows.merge(main, on=["season", "mlbam_id"], how="left")
+    known = rows["position"].notna()
+    q = rows["marcel_war600"].fillna(-5.0)
+    team = [rows["season"], rows["team_id"]]
+    at = [rows["season"], rows["team_id"], rows["position"].fillna("none")]
+    rows["ctx_rank_team"] = q.groupby(team).rank(ascending=False)
+    rows["ctx_team_n"] = q.groupby(team).transform("count")
+    rows["ctx_team_pipe"] = rows["pipe"].groupby(team).transform("sum")
+    rows["ctx_pipe_share"] = rows["pipe"] / rows["ctx_team_pipe"]
+    rows["ctx_rank_pos"] = q.groupby(at).rank(ascending=False).where(known)
+    rows["ctx_n_pos"] = q.groupby(at).transform("count").where(known)
+    rows["ctx_pos_pipe"] = rows["pipe"].groupby(at).transform("sum").where(known)
+    rows["ctx_gap_pos"] = q.groupby(at, group_keys=False).apply(_gap_to_best_other).where(known)
+    rows["ctx_is_c"] = (rows["position"] == "C").astype(float)
+    rows["ctx_no_pos"] = (~known).astype(float)
+    return rows.drop(columns="position")
+
+
 def frames(batters: pd.DataFrame, roster: pd.DataFrame, path=DUCKDB_PATH) -> pd.DataFrame:
     """PA rows: every Marcel hitter projection on an Opening Day roster, with inputs, target y
     (actual PA, 0 if none; unknown for the upcoming season) and weight vol (1)."""
@@ -108,6 +146,8 @@ def frames(batters: pd.DataFrame, roster: pd.DataFrame, path=DUCKDB_PATH) -> pd.
                          "from marts.player_preseason_status").df()
         actual = con.sql("select season, mlbam_id, pa as act_pa from marts.player_batting_seasons "
                          "where not is_pitcher").df()
+        positions = con.sql("select season, mlbam_id, position, games "
+                            "from marts.player_position_games").df()
     b = batters[["season", "mlbam_id", "age", "pa", "off_runs", "def_runs", "war"]].copy()
     pa = b["pa"].where(b["pa"] > 0)
     b["marcel_off600"] = b["off_runs"] / pa * 600
@@ -116,8 +156,9 @@ def frames(batters: pd.DataFrame, roster: pd.DataFrame, path=DUCKDB_PATH) -> pd.
     b = lagged(b.drop(columns=["pa", "off_runs", "def_runs", "war"]), history(path), LAGS,
                VOLUMES)
     on = on_rosters(batters[["season", "mlbam_id", "pa"]], roster, "batter")
-    rows = on[["season", "mlbam_id", "pa"]].rename(columns={"pa": "pipe"}) \
+    rows = on[["season", "mlbam_id", "team_id", "pa"]].rename(columns={"pa": "pipe"}) \
         .drop_duplicates(["season", "mlbam_id"]).merge(b, on=["season", "mlbam_id"])
+    rows = roster_context(rows, positions)
     rows = opening_day(rows, status).merge(actual, on=["season", "mlbam_id"], how="left")
     last = int(actual["season"].max())
     rows["y"] = rows["act_pa"].fillna(0.0).where(rows["season"] <= last)

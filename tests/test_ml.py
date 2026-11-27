@@ -76,3 +76,32 @@ def test_score_compares_model_and_baseline_on_completed_seasons():
     s = core.score(pred, rows, centered=False, baseline="base")
     assert list(s.index) == ["all", 2024]                       # 2025 unknown, 2020 left out
     assert s.loc["all", "model"] == 0.0 and s.loc["all", "baseline"] == pytest.approx(20.0)
+
+
+def test_hitter_roster_context_ranks_teammates_at_his_position():
+    rows = pd.DataFrame({"season": 2024, "team_id": [1, 1, 1, 1], "mlbam_id": [1, 2, 3, 4],
+                         "pipe": [600.0, 300.0, 400.0, 100.0],
+                         "marcel_war600": [4.0, 1.0, 2.0, 0.5]})
+    positions = pd.DataFrame({"season": 2024, "mlbam_id": [1, 2, 3, 3],
+                              "position": ["SS", "SS", "C", "1B"], "games": [150, 40, 90, 20]})
+    out = mlh.roster_context(rows, positions).set_index("mlbam_id")
+    assert out["ctx_rank_team"].tolist() == [1.0, 3.0, 2.0, 4.0]
+    assert out.loc[1, "ctx_rank_pos"] == 1.0 and out.loc[2, "ctx_rank_pos"] == 2.0
+    assert out.loc[1, "ctx_gap_pos"] == pytest.approx(3.0)       # 4.0 against the next SS
+    assert out.loc[2, "ctx_gap_pos"] == pytest.approx(-3.0)
+    assert np.isnan(out.loc[3, "ctx_gap_pos"]) and out.loc[3, "ctx_is_c"] == 1.0   # sole catcher
+    assert out.loc[4, "ctx_no_pos"] == 1.0 and np.isnan(out.loc[4, "ctx_rank_pos"])
+    assert out["ctx_pipe_share"].sum() == pytest.approx(1.0)
+
+
+def test_pitcher_roster_context_ranks_the_rotation_and_the_fifth_starter_gap():
+    war = [5.0, 4.0, 3.0, 2.0, 1.0, 0.5, 2.5]
+    rows = pd.DataFrame({"season": 2024, "team_id": 1, "mlbam_id": range(7),
+                         "pipe": [180.0, 170, 160, 150, 140, 100, 60],
+                         "start_share": [1.0] * 6 + [0.0], "marcel_war180": war})
+    out = mlp.roster_context(rows).set_index("mlbam_id")
+    assert out.loc[0, "ctx_rot_rank"] == 1.0 and out.loc[5, "ctx_rot_rank"] == 6.0
+    assert out.loc[0, "ctx_gap5"] == pytest.approx(4.0)        # fifth starter: 1.0
+    assert out.loc[5, "ctx_gap5"] == pytest.approx(-0.5)
+    assert out.loc[6, "ctx_rp_rank"] == 1.0 and np.isnan(out.loc[6, "ctx_rot_rank"])
+    assert out.loc[0, "ctx_n_sp"] == 6 and out.loc[0, "ctx_rot_ip"] == pytest.approx(900.0)

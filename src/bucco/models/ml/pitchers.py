@@ -16,7 +16,8 @@ season (batters faced, innings, starts, games, start share, the four FIP run par
 batters faced, against each league), the share of batters faced in the minors and the average
 minor-league level, ground-out share against the league, injured-list days, stints and 60-day
 stints; plus age, the season, Marcel's start share, rate and WAR per 180 innings, and Opening Day
-status this season and last (on the 40-man, on the injured list). Unknown values (injured list
+status this season and last (on the 40-man, on the injured list); the innings model also gets
+roster context (`roster_context`: rank in his team's rotation or bullpen). Unknown values (injured list
 before 2009, minor leagues before 2006) are left missing; the trees handle them.
 
 Fitting takes about half an hour (longer with organization depth), so `fit_and_save` (`bucco
@@ -100,6 +101,30 @@ def history(path=DUCKDB_PATH) -> pd.DataFrame:
     return g[["season", "mlbam_id", *LAGS]]
 
 
+def roster_context(rows: pd.DataFrame) -> pd.DataFrame:
+    """Where each rostered pitcher stands on his team (rows: season, team_id, mlbam_id, pipe,
+    start_share, marcel_war180): his rank by Marcel's WAR per 180 innings on the staff and among
+    its starters (start share 0.5 or more) or relievers, how many of each there are, a starter's
+    gap to the team's fifth-best starter, his share of the team's pipeline innings and the
+    starters' pipeline innings."""
+    q = rows["marcel_war180"].fillna(-5.0)
+    team = [rows["season"], rows["team_id"]]
+    sp = rows["start_share"] >= 0.5
+    rows = rows.assign(ctx_sp=sp.astype(float))
+    rows["ctx_rank_team"] = q.groupby(team).rank(ascending=False)
+    rows["ctx_rot_rank"] = q.where(sp).groupby(team).rank(ascending=False)
+    rows["ctx_rp_rank"] = q.where(~sp).groupby(team).rank(ascending=False)
+    rows["ctx_n_sp"] = sp.groupby(team).transform("sum")
+    rows["ctx_n_rp"] = (~sp).groupby(team).transform("sum")
+    rows["ctx_team_pipe"] = rows["pipe"].groupby(team).transform("sum")
+    rows["ctx_pipe_share"] = rows["pipe"] / rows["ctx_team_pipe"]
+    fifth = q.where(sp).groupby(team).transform(
+        lambda s: s.nlargest(5).min() if s.notna().sum() >= 5 else np.nan)
+    rows["ctx_gap5"] = (q - fifth).where(sp)
+    rows["ctx_rot_ip"] = rows["pipe"].where(sp).groupby(team).transform("sum")
+    return rows
+
+
 def frames(pitchers: pd.DataFrame, roster: pd.DataFrame,
            path=DUCKDB_PATH) -> tuple[pd.DataFrame, pd.DataFrame]:
     """(rate rows: every Marcel pitcher projection; innings rows: those on `roster`),
@@ -123,16 +148,19 @@ def frames(pitchers: pd.DataFrame, roster: pd.DataFrame,
     rate["y"] = rate["act_runs"] / rate["act_ip"].where(rate["act_ip"] > 0) * 9
     rate["vol"] = rate["act_ip"]
     on = on_rosters(pitchers[["season", "mlbam_id", "ip"]], roster, "pitcher")
-    inn = opening_day(on[["season", "mlbam_id", "ip"]].rename(columns={"ip": "pipe"})
-                      .drop_duplicates(["season", "mlbam_id"])
-                      .merge(p.drop(columns="ip"), on=["season", "mlbam_id"]), status)
+    inn = on[["season", "mlbam_id", "team_id", "ip"]].rename(columns={"ip": "pipe"}) \
+        .drop_duplicates(["season", "mlbam_id"]).merge(p.drop(columns="ip"),
+                                                       on=["season", "mlbam_id"])
+    inn = opening_day(roster_context(inn), status)
     inn["y"] = inn["act_ip"].fillna(0.0).where(inn["season"] <= last)
     inn["vol"] = 1.0
     return rate, inn
 
 
 RATE_FEATURES = ["age", "season", "start_share"] + [f"y{k}_{c}" for k in (1, 2, 3) for c in LAGS]
-INNINGS_FEATURES = ["age", "season", "start_share", "marcel_fip9", "marcel_war180",
+CONTEXT = ["ctx_rank_team", "ctx_sp", "ctx_rot_rank", "ctx_n_sp", "ctx_rp_rank", "ctx_n_rp",
+           "ctx_pipe_share", "ctx_team_pipe", "ctx_gap5", "ctx_rot_ip"]
+INNINGS_FEATURES = ["age", "season", "start_share", "marcel_fip9", "marcel_war180", *CONTEXT,
                     *OPENING_DAY] + [f"y{k}_{c}" for k in (1, 2, 3) for c in LAGS]
 
 
