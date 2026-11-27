@@ -10,7 +10,10 @@ Batting comes from the lineup optimizer (every team fills the same PA at every p
 Pitching is what the forecast uses: the projection as given for Steamer, and the depth chart's
 innings for our own Marcel projections (which list every pitcher with his own innings), or the
 staff optimizer's for `marcel_staff_optimized`. For Marcel, rosters and the unsigned list come
-from the Steamer file; every number is Marcel's.
+from the Steamer file; every number is Marcel's. For `marcel_ml_hitter_pa`, whose forecast takes
+hitters' learned PA as given, the lineup optimizer still decides who plays where, but no rostered
+hitter gets more PA than the learned model expects (`pa_cap`), so the page follows the forecast's
+playing time.
 """
 
 from __future__ import annotations
@@ -42,7 +45,8 @@ DIVISIONS = {
 }
 MODEL_SOURCE = {"steamer_optimized": "steamer", "steamer": "steamer", "depth_chart": "zips",
                 "marcel_park_optimized": "marcel_park_fielding",
-                "marcel_staff_optimized": "marcel_staff", "marcel_ml_pitchers": "marcel_ml"}
+                "marcel_staff_optimized": "marcel_staff", "marcel_ml_pitchers": "marcel_ml",
+                "marcel_ml_hitter_pa": "marcel_ml_pa"}
 # Marcel source -> (aging, what rates are shrunk toward, park-neutral, fielding from Steamer
 # and ZiPS, pitcher innings, availability from Opening Day 40-man status, weight of minor-league
 # PA, rookies from minor-league history, weight of minor-league batters faced[, pitchers' runs
@@ -54,13 +58,17 @@ MARCEL_SETTINGS = {"marcel_park": (True, "fitted", True, False, "marcel", *_NONE
                                     True, 0.5, tuple(marcel.COMPONENT_REG_BF[p]
                                                      for p in marcel.COMPONENTS), "mlb")}
 MARCEL_SETTINGS["marcel_ml"] = MARCEL_SETTINGS["marcel_staff"]
-ML_PITCHERS = {"marcel_ml"}   # sources with learned pitcher innings and rates (ml.pitchers)
-STAFF_OPTIMIZED = {"marcel_staff", "marcel_ml"}   # innings from the staff optimizer
+MARCEL_SETTINGS["marcel_ml_pa"] = MARCEL_SETTINGS["marcel_staff"]
+# sources with learned pitcher innings and rates (ml.pitchers)
+ML_PITCHERS = {"marcel_ml", "marcel_ml_pa"}
+ML_HITTERS = {"marcel_ml_pa"}   # learned hitter PA (ml.hitters), each one's cap in the lineup
+STAFF_OPTIMIZED = {"marcel_staff", "marcel_ml", "marcel_ml_pa"}   # innings: staff optimizer
 # lineup optimizer settings by source, as in the models (default: the absolute curve)
-OPTIMIZER_OPTIONS = {"marcel_staff": lo.RELATIVE, "marcel_ml": lo.RELATIVE}
+OPTIMIZER_OPTIONS = {"marcel_staff": lo.RELATIVE, "marcel_ml": lo.RELATIVE,
+                     "marcel_ml_pa": lo.RELATIVE}
 # whose preseason rosters Marcel is put on, by source (default Steamer's); the unsigned list is
 # always Steamer's players with no team, less anyone on those rosters
-MARCEL_ROSTERS = {"marcel_staff": "mlb", "marcel_ml": "mlb"}
+MARCEL_ROSTERS = {"marcel_staff": "mlb", "marcel_ml": "mlb", "marcel_ml_pa": "mlb"}
 UNSIGNED_SOURCE = "steamer"
 SPOTS = ["Rotation", "Bullpen", *lo.POSITIONS]      # rows of the position comparison
 STRONG_RANK = 10          # a spot ranked this high or better is a strength
@@ -333,12 +341,20 @@ def marcel_rows(source: str, season: int, path=DUCKDB_PATH,
     """Our Marcel projections in the player_projections column names: (batters, pitchers,
     unsigned batters, unsigned pitchers). Team pitchers carry the depth chart's (or, for
     STAFF_OPTIMIZED sources, the staff optimizer's) innings and WAR, as in the forecast;
-    unsigned pitchers their own."""
+    unsigned pitchers their own. For ML_HITTERS sources, hitters carry the learned PA, and
+    those the model predicts (the rostered ones) a pa_cap at it."""
     from bucco.models import depth_chart as dc
     from bucco.models.player_inputs import marcel_projections, marcel_rosters, on_rosters
 
     bat_all, pit_all = marcel_projections(*MARCEL_SETTINGS[source], path=path)
-    bat_all = bat_all[bat_all["season"] == season].rename(
+    bat_all = bat_all[bat_all["season"] == season]
+    if source in ML_HITTERS:
+        from bucco.models.ml import hitters as mlh
+        preds = mlh.load_predictions()
+        preds = preds[preds["season"] == season]
+        bat_all = mlh.apply(bat_all, preds)
+        bat_all["pa_cap"] = bat_all["pa"].where(bat_all["mlbam_id"].isin(set(preds["mlbam_id"])))
+    bat_all = bat_all.rename(
         columns={"pa": "plate_appearances", "bsr": "bsr_runs"})
     pit_all = pit_all[pit_all["season"] == season]
     if source in ML_PITCHERS:
