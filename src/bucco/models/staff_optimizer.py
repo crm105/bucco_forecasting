@@ -60,6 +60,14 @@ MIN_BASE_IP = 5.0           # baselines are floored here, so the curve stays fin
 PROPORTIONAL = True         # scale each pitcher's c by his value over replacement (see below)
 REFERENCE_VALUE = 0.15      # runs per inning above starter replacement that c0 refers to
 MIN_VALUE = 0.02            # floor on that value when scaling
+# Leverage: a team's best reliever (closer) and the next SETUP_RELIEVERS (setup men), ranked by
+# WAR per inning in relief among those with at least LEVERAGE_MIN_IP relief innings, pitch in
+# closer games, so their relief WAR counts LEVERAGE times in team WAR. 2.0 / 1.5 splits the
+# difference between the usual chained weights (1.4 / 1.2) and the best backtest
+# (docs/R&D/leverage.md).
+LEVERAGE = (2.0, 1.5)
+SETUP_RELIEVERS = 3
+LEVERAGE_MIN_IP = 20.0
 
 
 def fatigue_c(age, fatigue: float = FATIGUE_RUNS, age_slope: float = AGE_SLOPE):
@@ -187,3 +195,19 @@ def optimize_staffs(pitchers: pd.DataFrame, min_start_share: float = ROTATION_MI
         alloc["team_id"] = team_id
         out.append(alloc)
     return pd.concat(out, ignore_index=True)
+
+
+def leverage_war(alloc: pd.DataFrame, weights: tuple[float, float] = LEVERAGE,
+                 setup: int = SETUP_RELIEVERS, min_ip: float = LEVERAGE_MIN_IP) -> pd.Series:
+    """Extra team WAR from leverage, by team_id: (weight - 1) x relief WAR of each team's closer
+    (weights[0]) and setup men (weights[1]), ranked by relief WAR per inning (see LEVERAGE).
+    alloc: optimize_staffs output (team_id, mlbam_id, pool, ip, war). Players' own WAR is left
+    leverage-free, as actual WAR is."""
+    rp = alloc[(alloc["pool"] == "RP") & (alloc["mlbam_id"] >= 0)]
+    rp = rp.groupby(["team_id", "mlbam_id"], as_index=False)[["ip", "war"]].sum()
+    rp = rp[rp["ip"] >= min_ip].assign(rate=lambda d: d["war"] / d["ip"])
+    rp = rp.sort_values(["team_id", "rate", "mlbam_id"], ascending=[True, False, True])
+    rank = rp.groupby("team_id").cumcount()
+    extra = np.select([rank == 0, rank <= setup], [weights[0] - 1.0, weights[1] - 1.0], 0.0)
+    teams = alloc["team_id"].unique()
+    return (rp["war"] * extra).groupby(rp["team_id"]).sum().reindex(teams, fill_value=0.0)

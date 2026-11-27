@@ -167,3 +167,18 @@ def test_relief_innings_follow_the_role():
     starters = relief[relief.index < 10]
     assert (starters <= so.RELIEF_FLOOR_IP + 1e-6).all()            # pure starters: long relief only
     assert (relief <= so.MAX_RP_IP + so.RELIEF_FLOOR_IP + 1e-6).all()
+
+
+def test_leverage_weights_each_teams_closer_and_setup_men():
+    alloc = pd.DataFrame({
+        "team_id": [1] * 7 + [2],
+        "mlbam_id": [10, 11, 12, 13, 14, 15, -1, 20],
+        "pool": ["SP", "RP", "RP", "RP", "RP", "RP", "RP", "RP"],
+        "ip": [180.0, 60.0, 60.0, 60.0, 60.0, 10.0, 50.0, 70.0],
+        "war": [4.0, 2.0, 1.2, 0.9, 0.6, 1.0, 0.0, 0.7],
+    })
+    extra = so.leverage_war(alloc, weights=(2.0, 1.5), setup=2, min_ip=20.0)
+    # team 1: closer 11 (x1 extra), setup 12 and 13 (x0.5); 14 is fourth, 15 too few innings,
+    # starters and replacement level never count
+    assert extra[1] == pytest.approx(2.0 + 0.5 * (1.2 + 0.9))
+    assert extra[2] == pytest.approx(0.7)

@@ -17,6 +17,7 @@ from bucco.models import innings as inn
 from bucco.models import lineup_optimizer as lo
 from bucco.models import marcel
 from bucco.models import milb as mle
+from bucco.models import staff_optimizer as so
 from bucco.models.depth_chart_model import DepthChartModel, PlayerData
 
 # source in player_projections -> (name for messages, how playing time is decided)
@@ -414,7 +415,9 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
                      injury_sims: int = 0, milb_pitching: float = 0.0,
                      pitcher_components: bool = False, ml_pitchers: bool = False,
                      pitcher_roster: str | None = None, ml_hitters: bool = False,
-                     statcast_fielding: bool = False, path=DUCKDB_PATH) -> PlayerData:
+                     statcast_fielding: bool = False,
+                     leverage: tuple[float, float] | None = None,
+                     path=DUCKDB_PATH) -> PlayerData:
     """Our own Marcel projections on each team's preseason roster.
 
     Rosters are `roster_source`'s preseason rosters (`marcel_rosters`: Steamer's team
@@ -435,7 +438,8 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
     pitchers join this source's rosters instead of `roster_source`'s (projections unchanged), and
     with `ml_pitchers` take that roster's learned innings. `ml_hitters`: hitters' PA from the
     learned model (bucco.models.ml.hitters; `bucco fit-ml --targets hitters`), from its first
-    predicted season on (earlier seasons are dropped)."""
+    predicted season on (earlier seasons are dropped). `leverage`: (closer, setup) weights on
+    the best relievers' WAR in team WAR (PlayerData; staff_optimizer.leverage_war)."""
     components = (tuple(marcel.COMPONENT_REG_BF[p] for p in marcel.COMPONENTS)
                   if pitcher_components else None)
     batters, pitchers = marcel_projections(aging, prior, park, fielding, innings,
@@ -465,7 +469,7 @@ def load_marcel_data(playing_time: str = "depth_chart", roster_source: str = "st
     return PlayerData(batters, pitchers, positions, source="Marcel", playing_time=playing_time,
                       matchups=matchups, pitcher_playing_time=pitcher_playing_time,
                       optimizer_options=lo.RELATIVE if relative_fatigue else None,
-                      injury_sims=injury_sims,
+                      injury_sims=injury_sims, leverage=leverage,
                       injury_samples=injury_samples(batters, pitchers, path)
                       if injury_sims else None)
 
@@ -505,7 +509,8 @@ STAFF_SETTINGS = {"aging": True, "prior": "fitted", "park": True, "fielding": Tr
                   "innings": "baseline", "pitcher_playing_time": "optimized",
                   "availability": "absolute", "milb": mle.MILB_WEIGHT, "milb_rookies": True,
                   "relative_fatigue": True, "milb_pitching": mle.PITCHER_MILB_WEIGHT,
-                  "pitcher_components": True, "roster_source": "mlb", "statcast_fielding": True}
+                  "pitcher_components": True, "roster_source": "mlb", "statcast_fielding": True,
+                  "leverage": so.LEVERAGE}
 
 
 def staff_projection_settings() -> tuple:
@@ -529,8 +534,8 @@ def make_marcel_ml_pitchers_model() -> DepthChartModel:
 
 def make_marcel_ml_hitter_pa_model() -> DepthChartModel:
     """Factory for the registry: `marcel_ml_pitchers` with hitters' PA from the learned model
-    (bucco.models.ml.hitters) used as given, without the lineup optimizer; hitters' rates stay
-    Marcel's. From 2012, the first season the PA model predicts."""
+    (bucco.models.ml.hitters) used as given, without the lineup optimizer, and hitters'
+    offense from the learned model too. From 2012, the first season the PA model predicts."""
     return DepthChartModel(load_marcel_data("as_given", ml_pitchers=True, ml_hitters=True,
                                             **STAFF_SETTINGS), name="marcel_ml_hitter_pa")
 

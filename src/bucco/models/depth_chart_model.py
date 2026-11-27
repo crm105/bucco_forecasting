@@ -87,6 +87,9 @@ class PlayerData:
     batters. staff_options: keyword arguments for `staff_optimizer.optimize_staffs`.
     injury_sims: with both playing times "optimized", team WAR is the mean over this many
     injury draws (bucco.models.injury_sim), from `injury_samples` (season -> group -> draws).
+    leverage: with "optimized" pitchers, (closer, setup) weights on the relief WAR of each
+    team's best relievers in team WAR (staff_optimizer.leverage_war); players' own WAR, in
+    player_allocations, stays leverage-free.
     """
 
     def __init__(self, batters: pd.DataFrame, pitchers: pd.DataFrame,
@@ -97,7 +100,8 @@ class PlayerData:
                  pitcher_playing_time: str | None = None,
                  staff_options: dict | None = None,
                  injury_sims: int = 0,
-                 injury_samples: dict | None = None) -> None:
+                 injury_samples: dict | None = None,
+                 leverage: tuple[float, float] | None = None) -> None:
         if playing_time not in PLAYING_TIME:
             raise ValueError(f"playing_time must be one of {PLAYING_TIME}, not {playing_time!r}")
         self.source = source
@@ -110,6 +114,7 @@ class PlayerData:
         self.staff_options = dict(staff_options or {})
         self.injury_sims = injury_sims
         self.injury_samples = injury_samples or {}
+        self.leverage = leverage
         self.sim_sd: dict[int, pd.Series] = {}     # team WAR sd over injury draws, by season
         self.matchups = (matchups if matchups is not None
                          else pd.DataFrame(columns=["season", "team_id", "opponent_id", "games"]))
@@ -173,8 +178,12 @@ class PlayerData:
             chart = dc.depth_chart_by_team(pool, group="team_id")
             bat_players = chart[["team_id", "mlbam_id", "allocated", "scaled_war"]].rename(
                 columns={"allocated": "pa", "scaled_war": "war"})
+        lev = None
         if self.pitcher_playing_time == "optimized":
             pit_players = self._optimized_pitching(pitchers)
+            if self.leverage:
+                from bucco.models.staff_optimizer import leverage_war
+                lev = leverage_war(pit_players, self.leverage)
         elif self.pitcher_playing_time != "depth_chart" and \
                 self._as_given(pitchers, "ip", RAW_LIST_IP, season):
             pit_players = pitchers[["team_id", "mlbam_id", "ip", "war"]]
@@ -190,6 +199,8 @@ class PlayerData:
         self._players[(season, as_of)] = {"batting": bat_players, "pitching": pit_players}
         bat = bat_players.groupby("team_id")["war"].sum()
         pit = pit_players.groupby("team_id")["war"].sum()
+        if lev is not None:
+            pit = pit.add(lev, fill_value=0.0)
         self._parts[(season, as_of)] = pd.DataFrame({"batting": bat, "pitching": pit}).fillna(0.0)
         return bat.add(pit, fill_value=0.0)
 
