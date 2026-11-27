@@ -17,7 +17,9 @@ batters faced, against each league), the share of batters faced in the minors an
 minor-league level, ground-out share against the league, injured-list days, stints and 60-day
 stints; plus age, the season, Marcel's start share, rate and WAR per 180 innings, and Opening Day
 status this season and last (on the 40-man, on the injured list); the innings model also gets
-roster context (`roster_context`: rank in his team's rotation or bullpen). Unknown values (injured list
+roster context (`roster_context`: rank in his team's rotation or bullpen), and the rate model
+Statcast inputs (`core.with_statcast`: contact against, whiff and chase rates, pitch speed;
+from 2015). Unknown values (injured list
 before 2009, minor leagues before 2006) are left missing; the trees handle them.
 
 Fitting takes about half an hour (longer with organization depth), so `fit_and_save` (`bucco
@@ -44,8 +46,10 @@ from bucco.models.ml.core import (
     lagged,
     opening_day,
     score,
+    statcast_features,
     walk_forward,
     with_il,
+    with_statcast,
 )
 
 log = logging.getLogger(__name__)
@@ -144,7 +148,7 @@ def frames(pitchers: pd.DataFrame, roster: pd.DataFrame,
     p = lagged(p.drop(columns=["runs_per_ip", "war"]), hist, LAGS, VOLUMES)
     p = p.merge(actual, on=["season", "mlbam_id"], how="left")
     last = int(actual["season"].max())
-    rate = p.copy()
+    rate = with_statcast(p, "pitcher", path)
     rate["y"] = rate["act_runs"] / rate["act_ip"].where(rate["act_ip"] > 0) * 9
     rate["vol"] = rate["act_ip"]
     on = on_rosters(pitchers[["season", "mlbam_id", "ip"]], roster, "pitcher")
@@ -157,7 +161,8 @@ def frames(pitchers: pd.DataFrame, roster: pd.DataFrame,
     return rate, inn
 
 
-RATE_FEATURES = ["age", "season", "start_share"] + [f"y{k}_{c}" for k in (1, 2, 3) for c in LAGS]
+RATE_FEATURES = ["age", "season", "start_share", *statcast_features("pitcher")] \
+    + [f"y{k}_{c}" for k in (1, 2, 3) for c in LAGS]
 CONTEXT = ["ctx_rank_team", "ctx_sp", "ctx_rot_rank", "ctx_n_sp", "ctx_rp_rank", "ctx_n_rp",
            "ctx_pipe_share", "ctx_team_pipe", "ctx_gap5", "ctx_rot_ip"]
 INNINGS_FEATURES = ["age", "season", "start_share", "marcel_fip9", "marcel_war180", *CONTEXT,

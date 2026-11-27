@@ -57,6 +57,48 @@ def with_il(g: pd.DataFrame, il: pd.DataFrame) -> pd.DataFrame:
     return g
 
 
+STATCAST = ["xwoba", "exit_velocity_avg", "launch_angle_avg", "barrel_batted_rate",
+            "hard_hit_percent", "sweet_spot_percent", "whiff_percent", "oz_swing_percent",
+            "z_swing_percent", "iz_contact_percent", "k_percent", "bb_percent"]
+STATCAST_ONLY = {"batter": ["sprint_speed"], "pitcher": ["fb_speed", "sl_speed"]}
+
+
+def statcast_features(kind: str) -> list[str]:
+    """Names of the inputs `with_statcast` adds for `kind` ("batter" or "pitcher")."""
+    extra = STATCAST + STATCAST_ONLY[kind]
+    return ([f"sc{k}_{c}" for k in (1, 2, 3) for c in [*extra, "sc_pa"]]
+            + [f"scavg_{c}" for c in extra])
+
+
+def with_statcast(rows: pd.DataFrame, kind: str, path=None) -> pd.DataFrame:
+    """`rows` (season, mlbam_id, ...) with Statcast leaderboard inputs (stg_savant__players, from
+    2015) for the three seasons before: each measure and its PA as sc1_* to sc3_*, and the
+    PA-weighted three-season average of each as scavg_*. Batters add sprint speed; pitchers add
+    fastball speed (the faster of four-seam and sinker) and slider speed. Missing before 2015."""
+    import duckdb
+
+    from bucco.config import DUCKDB_PATH
+
+    with duckdb.connect(str(path or DUCKDB_PATH), read_only=True) as con:
+        sc = con.execute("select * from staging.stg_savant__players where player_type = ?",
+                         [kind]).df()
+    sc["fb_speed"] = sc[["ff_speed", "si_speed"]].max(axis=1)
+    sc = sc.rename(columns={"pa": "sc_pa"})
+    extra = STATCAST + STATCAST_ONLY[kind]
+    cols = [*extra, "sc_pa"]
+    out = rows.copy()
+    for k in (1, 2, 3):
+        x = sc[["season", "mlbam_id", *cols]].assign(season=sc["season"] + k)
+        out = out.merge(x.rename(columns={c: f"sc{k}_{c}" for c in cols}),
+                        on=["season", "mlbam_id"], how="left")
+    for c in extra:
+        num = sum(out[f"sc{k}_{c}"].fillna(0) * out[f"sc{k}_sc_pa"].fillna(0) for k in (1, 2, 3))
+        den = sum(out[f"sc{k}_sc_pa"].fillna(0).where(out[f"sc{k}_{c}"].notna(), 0)
+                  for k in (1, 2, 3))
+        out[f"scavg_{c}"] = num / den.replace(0, np.nan)
+    return out
+
+
 def opening_day(rows: pd.DataFrame, status: pd.DataFrame) -> pd.DataFrame:
     """Opening Day flags this season and last (status: season, mlbam_id, il_group, one row per
     40-man player): on the 40-man, on the 60-day or a short injured list. Last season's are
