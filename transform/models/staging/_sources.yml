@@ -291,6 +291,16 @@ sources:
             description: MLB Advanced Media player id (Savant's player_id).
           - name: player_type
             description: "`batter` or `pitcher`."
+      - name: fielding
+        description: >
+          Statcast fielding run value by season and fielder, from 2016: runs total and by part,
+          and outs on the field at each position. 2016-2017 framing from the older framing
+          leaderboard.
+        meta:
+          external_location: "read_parquet('{{ env_var('BUCCO_DATA_DIR', '../data') }}/cache/savant/fielding/*.parquet')"
+        columns:
+          - name: mlbam_id
+            description: MLB Advanced Media player id (Savant's id).
 
   - name: manual_projections
     description: >

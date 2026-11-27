@@ -371,3 +371,21 @@ models:
         data_tests:
           - accepted_values:
               values: [batter, pitcher]
+
+  - name: stg_savant__fielding
+    description: >
+      Statcast fielding run value, typed: runs saved by part (range, arm, double plays, receiving
+      at first, framing, throwing, blocking) and outs on the field by position, from 2016.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: [season, mlbam_id]
+    columns:
+      - name: season
+        description: '{{ doc("season") }}'
+        data_tests: [not_null]
+      - name: mlbam_id
+        description: MLB Advanced Media player id.
+        data_tests: [not_null]
+      - name: fielding_runs
+        description: Total fielding run value (runs saved; positive is good).
+        data_tests: [not_null]

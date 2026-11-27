@@ -99,6 +99,8 @@ def _extract(args: argparse.Namespace) -> None:
     if args.target in ("savant", "all"):
         savant.extract_players(
             seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
+        savant.extract_fielding(
+            seasons=getattr(args, "seasons", None), refresh=getattr(args, "refresh", False))
     if args.target in ("projections", "all"):
         projections.extract_projections()
     if args.target in ("player-projections", "all"):
@@ -299,8 +301,8 @@ def main(argv: list[str] | None = None) -> None:
     splits.add_argument("--refresh", action="store_true", help="fetch again even if saved")
     sav = targets.add_parser("savant",
                              help="Statcast season leaderboards from Baseball Savant: contact "
-                                  "quality, plate discipline, sprint and pitch speed, from 2015 "
-                                  "(three requests per season)")
+                                  "quality, plate discipline, sprint and pitch speed (from "
+                                  "2015) and fielding run value (from 2016)")
     sav.add_argument("--seasons", type=int, nargs="*", help="only these seasons")
     sav.add_argument("--refresh", action="store_true", help="fetch again even if saved")
     psplits = targets.add_parser("mlb-player-splits",
