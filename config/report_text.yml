@@ -100,3 +100,6 @@ model_labels:
   marcel_ml_pitchers: >-
     Marcel with learned pitchers (our own player projections, pitcher innings and rates from
     learned models, with lineups and pitching staffs optimized)
+  marcel_ml_hitter_pa: >-
+    Marcel with learned playing time (our own player projections; hitters' PA, pitchers' innings
+    and rates from learned models; pitching staffs optimized)

@@ -6,6 +6,7 @@ from bucco.models.depth_chart_model import DepthChartModel, PlayerData
 from bucco.models.naive import ConstantModel, PersistenceModel
 from bucco.models.player_inputs import (
     make_depth_chart_model,
+    make_marcel_ml_hitter_pa_model,
     make_marcel_ml_pitchers_model,
     make_marcel_park_model,
     make_marcel_park_optimized_model,
@@ -33,6 +34,7 @@ REGISTRY = {
     "marcel_parkfit_optimized": make_marcel_parkfit_optimized_model,
     "marcel_staff_optimized": make_marcel_staff_optimized_model,
     "marcel_ml_pitchers": make_marcel_ml_pitchers_model,
+    "marcel_ml_hitter_pa": make_marcel_ml_hitter_pa_model,
 }
 
 __all__ = [
@@ -46,6 +48,7 @@ __all__ = [
     "SeasonForecaster",
     "make_blend_optimized_model",
     "make_depth_chart_model",
+    "make_marcel_ml_hitter_pa_model",
     "make_marcel_ml_pitchers_model",
     "make_marcel_park_model",
     "make_marcel_park_optimized_model",
